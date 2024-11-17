@@ -28,8 +28,10 @@ func init() {
 func loginToAws(cmd *cobra.Command, args []string) {
 	shouldAssumeRole, _ := cmd.Flags().GetBool("assume-role")
 
-	cfg, err := config.LoadDefaultConfig(context.TODO())
-
+	cfg, err := config.LoadDefaultConfig(context.TODO(), config.WithSharedCredentialsFiles([]string{
+		"~/.aws/credentials",
+		"jeeves",
+	}))
 	if err != nil {
 		// NOTE: Something went wrong reading .aws/config
 		log.Fatal(err)
