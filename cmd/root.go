@@ -33,9 +33,6 @@ func init() {
 	viper.BindPFlag("useViper", rootCmd.PersistentFlags().Lookup("viper"))
 	viper.SetDefault("author", "Mackenzie (obscurelyme) Greco nico.frozencoffee@gmail.com")
 	viper.SetDefault("license", "apache")
-
-	// rootCmd.AddCommand(addCmd)
-	// rootCmd.AddCommand(initCmd)
 }
 
 func initConfig() {
