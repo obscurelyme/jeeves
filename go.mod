@@ -8,7 +8,6 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/sts v1.33.0
 	github.com/fsnotify/fsnotify v1.7.0
 	github.com/icza/gox v0.2.0
-	github.com/obscurelyme/jeeves/ini v0.0.0-00010101000000-000000000000
 	github.com/spf13/cobra v1.8.1
 	github.com/spf13/viper v1.19.0
 )
@@ -44,5 +43,3 @@ require (
 	gopkg.in/ini.v1 v1.67.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
-
-replace github.com/obscurelyme/jeeves/ini => ./ini
