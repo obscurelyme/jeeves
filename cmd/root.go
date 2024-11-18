@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"log"
 	"os"
 	"path"
 
@@ -73,8 +72,7 @@ func initConfig() {
 
 	// Watch the configs
 	AWSConfig.OnConfigChange(func(e fsnotify.Event) {
-		// NOTE: do something I guess...
-		log.Println("File changed...")
+		AWSConfig.ReadInConfig()
 	})
 	AWSConfig.WatchConfig()
 }
@@ -83,6 +81,6 @@ func readConfigFile(cfg *viper.Viper) {
 	err := cfg.ReadInConfig()
 
 	if err != nil {
-		cobra.CheckErr(err)
+		cfg.WriteConfig()
 	}
 }

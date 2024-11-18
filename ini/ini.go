@@ -14,10 +14,20 @@ func WriteIniFile(filename string, settings map[string]any) error {
 		cfg.NewSection(key)
 		if v, ok := value.(map[string]any); ok {
 			for innerKey, innerValue := range v {
-				cfg.Section(key).NewKey(innerKey, innerValue.(string))
+				insertKey(cfg, key, innerKey, innerValue)
 			}
 		}
 	}
 
 	return cfg.SaveTo(filename)
+}
+
+func insertKey(cfg *ini.File, sectionName string, key string, value any) {
+	if strValue, ok := value.(string); ok {
+		cfg.Section(sectionName).NewKey(key, strValue)
+	}
+
+	if _, ok := value.(bool); ok {
+		cfg.Section(sectionName).NewBooleanKey(key)
+	}
 }

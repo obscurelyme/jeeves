@@ -6,11 +6,12 @@ import (
 	"log"
 	"os"
 	"os/exec"
-	"strings"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
-	"github.com/aws/aws-sdk-go-v2/service/sts"
+	"github.com/aws/aws-sdk-go-v2/credentials/ssocreds"
+	"github.com/aws/aws-sdk-go-v2/service/sso"
+	"github.com/aws/aws-sdk-go-v2/service/ssooidc"
 	"github.com/obscurelyme/jeeves/ini"
 	"github.com/spf13/cobra"
 )
@@ -37,39 +38,29 @@ func loginToAws(cmd *cobra.Command, args []string) {
 	// Step 2, if "jeeves", then continue with SSO logon
 
 	cfg, err := config.LoadDefaultConfig(context.TODO(), config.WithSharedConfigProfile(profile))
-
 	if err != nil {
-		// NOTE: try to make a profile
+		// NOTE: try to make a profile, and log in
 		cfg = awsConfigureSSO()
 	}
 
-	stsClient := sts.NewFromConfig(cfg)
-	identity, err := stsClient.GetCallerIdentity(context.TODO(), &sts.GetCallerIdentityInput{})
-	s := strings.Split(string(*identity.UserId), ":")
-
-	stsClient.GetAccessKeyInfo(context.TODO(), &sts.GetAccessKeyInfoInput{
-		AccessKeyId: &s[0],
-	})
-	stsClient.GetSessionToken(context.TODO(), &sts.GetSessionTokenInput{})
-
-	if err != nil {
-		log.Fatalln(err.Error())
-	}
-
-	creds, err := cfg.Credentials.Retrieve(context.TODO())
-
-	if err != nil {
-		log.Fatalln(err.Error())
+	// confirm we are logged in
+	creds, err := confirmSSOLogin(cfg)
+	if err != nil || creds.Expired() {
+		// log in
+		awsConfigureSSO()
+		creds, _ = confirmSSOLogin(cfg)
 	}
 
 	if profile != "default" {
 		AWSCredentials.Set(fmt.Sprintf("%s.aws_access_key_id", profile), creds.AccessKeyID)
 		AWSCredentials.Set(fmt.Sprintf("%s.aws_secret_access_key", profile), creds.SecretAccessKey)
 		AWSCredentials.Set(fmt.Sprintf("%s.aws_session_token", profile), creds.SessionToken)
+		AWSCredentials.Set(fmt.Sprintf("%s.aws_expires", profile), creds.Expires.String())
 	} else {
 		AWSCredentials.Set("default.aws_access_key_id", creds.AccessKeyID)
 		AWSCredentials.Set("default.aws_secret_access_key", creds.SecretAccessKey)
 		AWSCredentials.Set("default.aws_session_token", creds.SessionToken)
+		AWSCredentials.Set("default.aws_expires", creds.Expires.String())
 	}
 
 	var credsErr = ini.WriteIniFile(AWSCredentialsFilePath, AWSCredentials.AllSettings())
@@ -81,62 +72,36 @@ func loginToAws(cmd *cobra.Command, args []string) {
 	log.Print("AWS Login Successful!")
 }
 
-// Generate a new session token for use of AWS resources
-// using the current logged in account.
-func getSessionToken(cfg aws.Config) {
-	var DurationSeconds int32 = 3600
+// Confirms the current logon state for SSO, if the user is logged in,
+// their credentials should exist, be valid and not be expired.
+func confirmSSOLogin(cfg aws.Config) (aws.Credentials, error) {
+	ssoClient := sso.NewFromConfig(cfg)
+	ssoOidcClient := ssooidc.NewFromConfig(cfg)
 
-	output, err := sts.NewFromConfig(cfg).GetSessionToken(context.TODO(), &sts.GetSessionTokenInput{
-		DurationSeconds: &DurationSeconds,
+	ssoSessionName := AWSConfig.GetString(fmt.Sprintf("%s.sso_session", profile))
+	ssoAccountId := AWSConfig.GetString(fmt.Sprintf("%s.sso_account_id", profile))
+	ssoRoleName := AWSConfig.GetString(fmt.Sprintf("%s.sso_role_name", profile))
+	ssoStartUrl := AWSConfig.GetString(fmt.Sprintf("sso-session %s.sso_start_url", ssoSessionName))
+
+	tokenPath, err := ssocreds.StandardCachedTokenFilepath(ssoSessionName)
+	if err != nil {
+		return aws.Credentials{}, err
+	}
+
+	var provider aws.CredentialsProvider
+	provider = ssocreds.New(ssoClient, ssoAccountId, ssoRoleName, ssoStartUrl, func(options *ssocreds.Options) {
+		options.SSOTokenProvider = ssocreds.NewSSOTokenProvider(ssoOidcClient, tokenPath)
 	})
 
+	// Wrap the provider with aws.CredentialsCache to cache the credentials until their expire time
+	provider = aws.NewCredentialsCache(provider)
+
+	credentials, err := provider.Retrieve(context.TODO())
 	if err != nil {
-		log.Fatal(err)
+		return aws.Credentials{}, err
 	}
 
-	log.Print(*output.Credentials)
-
-	home, _ := os.UserHomeDir()
-	file, err := os.OpenFile(fmt.Sprintf("%v/.aws/credentials", home), os.O_APPEND|os.O_WRONLY, 0644)
-
-	if err != nil {
-		panic(err)
-	}
-
-	defer file.Close()
-	str := []string{
-		fmt.Sprintf("aws_access_key_id: %v\n", *output.Credentials.AccessKeyId),
-		fmt.Sprintf("aws_secret_access_key: %v\n", *output.Credentials.SecretAccessKey),
-		fmt.Sprintf("session_token: %v\n", *output.Credentials.SessionToken),
-	}
-	log.Print(str)
-	// data := []byte(strings.Join(str, ""))
-
-	// _, err = file.Write(data)
-	// if err != nil {
-	// 	panic(err)
-	// }
-}
-
-// Assumes role, typically from another AWS account
-func assumeRole(cfg aws.Config) {
-	var DurationSeconds int32 = 3600
-	var RoleArn string = "arn"
-	RoleSessionName := fmt.Sprintf("JeevesSessionAssumedRole%v", "TempRoleName")
-
-	stsClient := sts.NewFromConfig(cfg)
-
-	output, err := stsClient.AssumeRole(context.TODO(), &sts.AssumeRoleInput{
-		RoleArn:         &RoleArn,
-		RoleSessionName: &RoleSessionName,
-		DurationSeconds: &DurationSeconds,
-	})
-
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	log.Print(*output.Credentials)
+	return credentials, nil
 }
 
 func awsConfigureSSO() aws.Config {
