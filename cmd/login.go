@@ -5,13 +5,17 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"os/exec"
+	"strings"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
+	"github.com/obscurelyme/jeeves/ini"
 	"github.com/spf13/cobra"
 )
 
+var profile string
 var loginCmd = &cobra.Command{
 	Use:   "login",
 	Short: "Login to AWS",
@@ -20,29 +24,58 @@ var loginCmd = &cobra.Command{
 }
 
 func init() {
+	loginCmd.PersistentFlags().Bool("sso", true, "Login to AWS via SSO with IAM Identity Center (default \"true\")")
 	loginCmd.PersistentFlags().Bool("assume-role", false, "Assume a role in AWS")
-	loginCmd.PersistentFlags().Bool("session", true, "Generate a session token for AWS (default \"true\")")
+	loginCmd.PersistentFlags().Bool("session", false, "Generate a session token for AWS")
+	loginCmd.PersistentFlags().StringVar(&profile, "profile", "default", "AWS Profile to login to")
 	rootCmd.AddCommand(loginCmd)
 }
 
 func loginToAws(cmd *cobra.Command, args []string) {
-	shouldAssumeRole, _ := cmd.Flags().GetBool("assume-role")
+	// Step 1, see if "jeeves" profile is set in .aws/config
+	// Step 1.5, if no "jeeves", then make "jeeves"
+	// Step 2, if "jeeves", then continue with SSO logon
 
-	cfg, err := config.LoadDefaultConfig(context.TODO(), config.WithSharedCredentialsFiles([]string{
-		"~/.aws/credentials",
-		"jeeves",
-	}))
+	cfg, err := config.LoadDefaultConfig(context.TODO(), config.WithSharedConfigProfile(profile))
+
 	if err != nil {
-		// NOTE: Something went wrong reading .aws/config
-		log.Fatal(err)
+		// NOTE: try to make a profile
+		cfg = awsConfigureSSO()
+	}
+
+	stsClient := sts.NewFromConfig(cfg)
+	identity, err := stsClient.GetCallerIdentity(context.TODO(), &sts.GetCallerIdentityInput{})
+	s := strings.Split(string(*identity.UserId), ":")
+
+	stsClient.GetAccessKeyInfo(context.TODO(), &sts.GetAccessKeyInfoInput{
+		AccessKeyId: &s[0],
+	})
+	stsClient.GetSessionToken(context.TODO(), &sts.GetSessionTokenInput{})
+
+	if err != nil {
+		log.Fatalln(err.Error())
+	}
+
+	creds, err := cfg.Credentials.Retrieve(context.TODO())
+
+	if err != nil {
+		log.Fatalln(err.Error())
+	}
+
+	if profile != "default" {
+		AWSCredentials.Set(fmt.Sprintf("%s.aws_access_key_id", profile), creds.AccessKeyID)
+		AWSCredentials.Set(fmt.Sprintf("%s.aws_secret_access_key", profile), creds.SecretAccessKey)
+		AWSCredentials.Set(fmt.Sprintf("%s.aws_session_token", profile), creds.SessionToken)
 	} else {
+		AWSCredentials.Set("default.aws_access_key_id", creds.AccessKeyID)
+		AWSCredentials.Set("default.aws_secret_access_key", creds.SecretAccessKey)
+		AWSCredentials.Set("default.aws_session_token", creds.SessionToken)
+	}
 
-		if shouldAssumeRole {
-			assumeRole(cfg)
-			return
-		}
+	var credsErr = ini.WriteIniFile(AWSCredentialsFilePath, AWSCredentials.AllSettings())
 
-		getSessionToken(cfg)
+	if credsErr != nil {
+		log.Fatalln(credsErr.Error())
 	}
 
 	log.Print("AWS Login Successful!")
@@ -91,7 +124,9 @@ func assumeRole(cfg aws.Config) {
 	var RoleArn string = "arn"
 	RoleSessionName := fmt.Sprintf("JeevesSessionAssumedRole%v", "TempRoleName")
 
-	output, err := sts.NewFromConfig(cfg).AssumeRole(context.TODO(), &sts.AssumeRoleInput{
+	stsClient := sts.NewFromConfig(cfg)
+
+	output, err := stsClient.AssumeRole(context.TODO(), &sts.AssumeRoleInput{
 		RoleArn:         &RoleArn,
 		RoleSessionName: &RoleSessionName,
 		DurationSeconds: &DurationSeconds,
@@ -102,4 +137,22 @@ func assumeRole(cfg aws.Config) {
 	}
 
 	log.Print(*output.Credentials)
+}
+
+func awsConfigureSSO() aws.Config {
+	awsCmd := exec.Command("aws", "configure", "sso", "--profile", profile)
+
+	awsCmd.Stdin = os.Stdin
+	awsCmd.Stdout = os.Stdout
+	awsCmd.Stderr = os.Stderr
+
+	err := awsCmd.Run()
+
+	if err != nil {
+		log.Fatalln(err.Error())
+	}
+
+	cfg, _ := config.LoadDefaultConfig(context.TODO(), config.WithSharedConfigProfile(profile))
+
+	return cfg
 }

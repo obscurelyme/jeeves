@@ -1,9 +1,11 @@
 package cmd
 
 import (
-	"fmt"
+	"log"
 	"os"
+	"path"
 
+	"github.com/fsnotify/fsnotify"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -16,6 +18,10 @@ var (
 		Short: "A helpful CLI for your AWS infrastructure",
 		Long:  "A helpful CLI for your AWS infrastructure",
 	}
+	JeevesConfig           *viper.Viper
+	AWSConfig              *viper.Viper
+	AWSCredentials         *viper.Viper
+	AWSCredentialsFilePath string
 )
 
 func Execute() error {
@@ -36,25 +42,47 @@ func init() {
 }
 
 func initConfig() {
-	if cfgFile != "" {
-		// Use config file from the flag.
-		viper.SetConfigFile(cfgFile)
-	} else {
-		// Find home directory.
-		home, err := os.UserHomeDir()
-		cobra.CheckErr(err)
+	home, err := os.UserHomeDir()
+	cobra.CheckErr(err)
 
-		// Search config in home directory with name ".jeeves" (without extension).
-		viper.AddConfigPath(home)
-		viper.SetConfigType("yaml")
-		viper.SetConfigName(".jeeves")
-	}
+	// Create Viper config structs
+	JeevesConfig = viper.New()
+	AWSConfig = viper.New()
+	AWSCredentials = viper.New()
+
+	JeevesConfig.AddConfigPath(home)
+	JeevesConfig.SetConfigType("yaml")
+	JeevesConfig.SetConfigName(".jeeves")
+
+	configPath := path.Join(home, ".aws")
+
+	AWSConfig.SetConfigType("ini")
+	AWSConfig.AddConfigPath(configPath)
+	AWSConfig.SetConfigName("config")
+
+	AWSCredentials.SetConfigType("ini")
+	AWSCredentials.AddConfigPath(configPath)
+	AWSCredentials.SetConfigName("credentials")
+	AWSCredentialsFilePath = path.Join(configPath, "credentials")
 
 	viper.AutomaticEnv()
 
-	if err := viper.ReadInConfig(); err == nil {
-		fmt.Println("Using config file:", viper.ConfigFileUsed())
-	} else {
-		fmt.Println("Error reading config file:", err)
+	readConfigFile(JeevesConfig)
+	readConfigFile(AWSConfig)
+	readConfigFile(AWSCredentials)
+
+	// Watch the configs
+	AWSConfig.OnConfigChange(func(e fsnotify.Event) {
+		// NOTE: do something I guess...
+		log.Println("File changed...")
+	})
+	AWSConfig.WatchConfig()
+}
+
+func readConfigFile(cfg *viper.Viper) {
+	err := cfg.ReadInConfig()
+
+	if err != nil {
+		cobra.CheckErr(err)
 	}
 }
