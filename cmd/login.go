@@ -36,19 +36,21 @@ func loginToAws(cmd *cobra.Command, args []string) {
 	// Step 1, see if "jeeves" profile is set in .aws/config
 	// Step 1.5, if no "jeeves", then make "jeeves"
 	// Step 2, if "jeeves", then continue with SSO logon
+	var creds aws.Credentials
 
 	cfg, err := config.LoadDefaultConfig(context.TODO(), config.WithSharedConfigProfile(profile))
 	if err != nil {
 		// NOTE: try to make a profile, and log in
-		cfg = awsConfigureSSO()
-	}
-
-	// confirm we are logged in
-	creds, err := confirmSSOLogin(cfg)
-	if err != nil || creds.Expired() {
-		// log in
 		awsConfigureSSO()
-		creds, _ = confirmSSOLogin(cfg)
+	} else {
+		// confirm we are logged in
+		var e error
+		creds, e = confirmSSOLogin(cfg)
+		if e != nil || creds.Expired() {
+			// log in
+			awsConfigureSSO()
+			creds, _ = confirmSSOLogin(cfg)
+		}
 	}
 
 	if profile != "default" {
