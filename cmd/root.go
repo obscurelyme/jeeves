@@ -5,14 +5,13 @@ import (
 	"path"
 
 	"github.com/fsnotify/fsnotify"
+	"github.com/obscurelyme/jeeves/cmd/faas"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
 
 var (
-	cfgFile     string
-	userLicense string
-	rootCmd     = &cobra.Command{
+	rootCmd = &cobra.Command{
 		Use:   "jeeves",
 		Short: "A helpful CLI for your AWS infrastructure",
 		Long:  "A helpful CLI for your AWS infrastructure",
@@ -29,15 +28,7 @@ func Execute() error {
 
 func init() {
 	cobra.OnInitialize(initConfig)
-
-	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.jeeves.yaml)")
-	rootCmd.PersistentFlags().StringP("author", "a", "Mackenzie (obscurelyme) Greco", "author name for copyright attribution")
-	rootCmd.PersistentFlags().StringVarP(&userLicense, "license", "l", "", "name of license for the project")
-	rootCmd.PersistentFlags().Bool("viper", true, "use Viper for configuration")
-	viper.BindPFlag("author", rootCmd.PersistentFlags().Lookup("author"))
-	viper.BindPFlag("useViper", rootCmd.PersistentFlags().Lookup("viper"))
-	viper.SetDefault("author", "Mackenzie (obscurelyme) Greco nico.frozencoffee@gmail.com")
-	viper.SetDefault("license", "apache")
+	rootCmd.AddCommand(faas.FaasRootCmd)
 }
 
 func initConfig() {
