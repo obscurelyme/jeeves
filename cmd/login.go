@@ -3,7 +3,6 @@ package cmd
 import (
 	"context"
 	"fmt"
-	"log"
 	"os"
 	"os/exec"
 
@@ -21,7 +20,7 @@ var loginCmd = &cobra.Command{
 	Use:   "login",
 	Short: "Login to AWS",
 	Long:  "Use Jeeves to login to AWS",
-	Run:   loginToAws,
+	RunE:  loginToAws,
 }
 
 func init() {
@@ -32,53 +31,41 @@ func init() {
 	rootCmd.AddCommand(loginCmd)
 }
 
-func loginToAws(cmd *cobra.Command, args []string) {
-	// Step 1, see if "jeeves" profile is set in .aws/config
-	// Step 1.5, if no "jeeves", then make "jeeves"
-	// Step 2, if "jeeves", then continue with SSO logon
-	var creds aws.Credentials
-
-	cfg, err := config.LoadDefaultConfig(context.TODO(), config.WithSharedConfigProfile(profile))
-	if err != nil {
-		// NOTE: try to make a profile, and log in
-		awsConfigureSSO()
-	} else {
-		// confirm we are logged in
-		var e error
-		creds, e = confirmSSOLogin(cfg)
-		if e != nil || creds.Expired() {
-			// log in
-			awsConfigureSSO()
-			creds, _ = confirmSSOLogin(cfg)
-		}
-	}
-
-	if profile != "default" {
-		AWSCredentials.Set(fmt.Sprintf("%s.aws_access_key_id", profile), creds.AccessKeyID)
-		AWSCredentials.Set(fmt.Sprintf("%s.aws_secret_access_key", profile), creds.SecretAccessKey)
-		AWSCredentials.Set(fmt.Sprintf("%s.aws_session_token", profile), creds.SessionToken)
-		AWSCredentials.Set(fmt.Sprintf("%s.aws_expires", profile), creds.Expires.String())
-	} else {
-		AWSCredentials.Set("default.aws_access_key_id", creds.AccessKeyID)
-		AWSCredentials.Set("default.aws_secret_access_key", creds.SecretAccessKey)
-		AWSCredentials.Set("default.aws_session_token", creds.SessionToken)
-		AWSCredentials.Set("default.aws_expires", creds.Expires.String())
-	}
-
-	var credsErr = ini.WriteIniFile(AWSCredentialsFilePath, AWSCredentials.AllSettings())
-
-	if credsErr != nil {
-		log.Fatalln(credsErr.Error())
-	}
-
-	log.Print("AWS Login Successful!")
+type Configurator interface {
+	LoadAWSConfig(profile string) (aws.Config, error)
+	SSOLogin() error
+	ConfigureSSO() error
+	GetSSOSessionCredentials() (aws.Credentials, error)
+	WriteSessionCredentials(creds aws.Credentials) error
 }
 
-// Confirms the current logon state for SSO, if the user is logged in,
-// their credentials should exist, be valid and not be expired.
-func confirmSSOLogin(cfg aws.Config) (aws.Credentials, error) {
-	ssoClient := sso.NewFromConfig(cfg)
-	ssoOidcClient := ssooidc.NewFromConfig(cfg)
+type Config struct {
+	awsConfig aws.Config
+}
+
+func (c *Config) LoadAWSConfig(profile string) (aws.Config, error) {
+	cfg, err := config.LoadDefaultConfig(context.TODO(), config.WithSharedConfigProfile(profile))
+
+	if err != nil {
+		return aws.Config{}, err
+	}
+
+	return cfg, nil
+}
+
+func (c *Config) SSOLogin() error {
+	awsCmd := exec.Command("aws", "sso", "login", "--profile", profile)
+
+	awsCmd.Stdin = os.Stdin
+	awsCmd.Stdout = os.Stdout
+	awsCmd.Stderr = os.Stderr
+
+	return awsCmd.Run()
+}
+
+func (c *Config) GetSSOSessionCredentials() (aws.Credentials, error) {
+	ssoClient := sso.NewFromConfig(c.awsConfig)
+	ssoOidcClient := ssooidc.NewFromConfig(c.awsConfig)
 
 	ssoSessionName := AWSConfig.GetString(fmt.Sprintf("%s.sso_session", profile))
 	ssoAccountId := AWSConfig.GetString(fmt.Sprintf("%s.sso_account_id", profile))
@@ -106,20 +93,86 @@ func confirmSSOLogin(cfg aws.Config) (aws.Credentials, error) {
 	return credentials, nil
 }
 
-func awsConfigureSSO() aws.Config {
+func (c *Config) ConfigureSSO() error {
 	awsCmd := exec.Command("aws", "configure", "sso", "--profile", profile)
 
 	awsCmd.Stdin = os.Stdin
 	awsCmd.Stdout = os.Stdout
 	awsCmd.Stderr = os.Stderr
 
-	err := awsCmd.Run()
+	return awsCmd.Run()
+}
 
-	if err != nil {
-		log.Fatalln(err.Error())
+func (c *Config) WriteSessionCredentials(creds aws.Credentials) error {
+	if profile != "default" {
+		AWSCredentials.Set(fmt.Sprintf("%s.aws_access_key_id", profile), creds.AccessKeyID)
+		AWSCredentials.Set(fmt.Sprintf("%s.aws_secret_access_key", profile), creds.SecretAccessKey)
+		AWSCredentials.Set(fmt.Sprintf("%s.aws_session_token", profile), creds.SessionToken)
+		AWSCredentials.Set(fmt.Sprintf("%s.aws_expires", profile), creds.Expires.String())
+	} else {
+		AWSCredentials.Set("default.aws_access_key_id", creds.AccessKeyID)
+		AWSCredentials.Set("default.aws_secret_access_key", creds.SecretAccessKey)
+		AWSCredentials.Set("default.aws_session_token", creds.SessionToken)
+		AWSCredentials.Set("default.aws_expires", creds.Expires.String())
 	}
 
-	cfg, _ := config.LoadDefaultConfig(context.TODO(), config.WithSharedConfigProfile(profile))
+	return ini.WriteIniFile(AWSCredentialsFilePath, AWSCredentials.AllSettings())
+}
 
-	return cfg
+type LoginProvider struct {
+	config  Configurator
+	profile string
+}
+
+func Login(provider *LoginProvider) error {
+	// Check if we have a valid ~/.aws/config + profile
+	_, err := provider.config.LoadAWSConfig(provider.profile)
+
+	if err != nil {
+		nerr := provider.config.ConfigureSSO()
+		if nerr != nil {
+			return nerr
+		}
+		// NOTE: SSO configured, start over
+		// return Login(provider)
+	}
+
+	// Check if we are still logged in, if not log in and refetch the credentials
+	creds, err := provider.config.GetSSOSessionCredentials()
+
+	if err != nil {
+		return err
+	}
+
+	if creds.Expired() {
+		// Login again
+		nerr := provider.config.SSOLogin()
+		if nerr != nil {
+			return nerr
+		}
+		// NOTE: We are now logged in, start over
+		// return Login(provider)
+	}
+
+	// NOTE: This is a VERY optional step in the SSO process btw...
+	// only relevant if we want to copy the credentials over to
+	// a docker container or something.
+	// Write the creds to the ~/.aws/credentials shared file
+	// err = provider.config.WriteSessionCredentials(creds)
+
+	// if err != nil {
+	// 	return err
+	// }
+
+	fmt.Println("AWS Login Successful!")
+	return nil
+}
+
+func loginToAws(cmd *cobra.Command, args []string) error {
+	var provider = LoginProvider{
+		config:  &Config{},
+		profile: profile,
+	}
+
+	return Login(&provider)
 }
