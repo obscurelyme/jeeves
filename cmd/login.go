@@ -8,10 +8,10 @@ import (
 	"os/exec"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials/ssocreds"
 	"github.com/aws/aws-sdk-go-v2/service/sso"
 	"github.com/aws/aws-sdk-go-v2/service/ssooidc"
+	"github.com/obscurelyme/jeeves/config"
 	"github.com/obscurelyme/jeeves/ini"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -34,27 +34,14 @@ func init() {
 }
 
 type Configurator interface {
-	LoadAWSConfig(profile string) (aws.Config, error)
 	SSOLogin() error
 	ConfigureSSO() error
-	GetSSOSessionCredentials() (aws.Credentials, error)
+	GetSSOSessionCredentials(cfg aws.Config) (aws.Credentials, error)
 	WriteSessionCredentials(filename string, vConfig *viper.Viper) error
 	SyncSessionCredentials(creds aws.Credentials, vConfig *viper.Viper, options *SyncSessionCredentialsInput) error
 }
 
-type Config struct {
-	awsConfig aws.Config
-}
-
-func (c *Config) LoadAWSConfig(profile string) (aws.Config, error) {
-	cfg, err := config.LoadDefaultConfig(context.TODO(), config.WithSharedConfigProfile(profile))
-
-	if err != nil {
-		return aws.Config{}, err
-	}
-
-	return cfg, nil
-}
+type Config struct{}
 
 func (c *Config) SSOLogin() error {
 	awsCmd := exec.Command("aws", "sso", "login", "--profile", profile)
@@ -66,9 +53,9 @@ func (c *Config) SSOLogin() error {
 	return awsCmd.Run()
 }
 
-func (c *Config) GetSSOSessionCredentials() (aws.Credentials, error) {
-	ssoClient := sso.NewFromConfig(c.awsConfig)
-	ssoOidcClient := ssooidc.NewFromConfig(c.awsConfig)
+func (c *Config) GetSSOSessionCredentials(cfg aws.Config) (aws.Credentials, error) {
+	ssoClient := sso.NewFromConfig(cfg)
+	ssoOidcClient := ssooidc.NewFromConfig(cfg)
 
 	ssoSessionName := AWSConfig.GetString(fmt.Sprintf("%s.sso_session", profile))
 	ssoAccountId := AWSConfig.GetString(fmt.Sprintf("%s.sso_account_id", profile))
@@ -135,25 +122,27 @@ func (c *Config) WriteSessionCredentials(filename string, vConfig *viper.Viper) 
 }
 
 type LoginProvider struct {
-	config  Configurator
-	profile string
+	loginConfig Configurator
+	profile     string
 }
 
 func Login(provider *LoginProvider) error {
 	// Check if we have a valid ~/.aws/config + profile
-	_, err := provider.config.LoadAWSConfig(provider.profile)
+	loader := config.AWSConfigLoader{}
+	cfg, err := loader.LoadAWSConfig(provider.profile)
 
 	if err != nil {
-		nerr := provider.config.ConfigureSSO()
+		nerr := provider.loginConfig.ConfigureSSO()
 		if nerr != nil {
 			return nerr
 		}
-		// NOTE: SSO configured, start over
-		// return Login(provider)
+		// NOTE: SSO configured, at this point the user is logged in
+		fmt.Println("AWS Login Successful!")
+		return nil
 	}
 
 	// Check if we are still logged in, if not log in and refetch the credentials
-	creds, err := provider.config.GetSSOSessionCredentials()
+	creds, err := provider.loginConfig.GetSSOSessionCredentials(cfg)
 
 	if err != nil {
 		return err
@@ -161,7 +150,7 @@ func Login(provider *LoginProvider) error {
 
 	if creds.Expired() {
 		// Login again
-		nerr := provider.config.SSOLogin()
+		nerr := provider.loginConfig.SSOLogin()
 		if nerr != nil {
 			return nerr
 		}
@@ -185,8 +174,8 @@ func Login(provider *LoginProvider) error {
 
 func loginToAws(cmd *cobra.Command, args []string) error {
 	var provider = LoginProvider{
-		config:  &Config{},
-		profile: profile,
+		loginConfig: &Config{},
+		profile:     profile,
 	}
 
 	return Login(&provider)

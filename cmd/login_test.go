@@ -32,14 +32,14 @@ func (c *MockConfig) ConfigureSSO() error {
 	return c.configureSSOErr
 }
 
-func (c *MockConfig) GetSSOSessionCredentials() (aws.Credentials, error) {
+func (c *MockConfig) GetSSOSessionCredentials(cfg aws.Config) (aws.Credentials, error) {
 	return c.ssoCredenials, c.ssoSessionCredentialsError
 }
 
 func TestLogin(t *testing.T) {
 	t.Run("should be successful", func(t *testing.T) {
 		err := Login(&LoginProvider{
-			config: &MockConfig{
+			loginConfig: &MockConfig{
 				output: aws.Config{},
 				err:    nil,
 				ssoCredenials: aws.Credentials{
@@ -58,7 +58,7 @@ func TestLogin(t *testing.T) {
 	t.Run("should return an error attempting to read the .aws/config file", func(t *testing.T) {
 		errorMessage := "Could not read or write .aws/config file"
 		err := Login(&LoginProvider{
-			config: &MockConfig{
+			loginConfig: &MockConfig{
 				output:          aws.Config{},
 				err:             errors.New("Test Error"),
 				configureSSOErr: errors.New(errorMessage),
@@ -78,7 +78,7 @@ func TestLogin(t *testing.T) {
 	t.Run("should return an error attempting to read the .aws/sso/cache", func(t *testing.T) {
 		errorMessage := "Unable to read .aws/sso/cache"
 		err := Login(&LoginProvider{
-			config: &MockConfig{
+			loginConfig: &MockConfig{
 				output:                     aws.Config{},
 				ssoSessionCredentialsError: errors.New(errorMessage),
 				ssoCredenials: aws.Credentials{
@@ -97,7 +97,7 @@ func TestLogin(t *testing.T) {
 	t.Run("should return an error attempting to log in", func(t *testing.T) {
 		errorMessage := "Unable to login"
 		err := Login(&LoginProvider{
-			config: &MockConfig{
+			loginConfig: &MockConfig{
 				output:      aws.Config{},
 				ssoLoginErr: errors.New(errorMessage),
 				ssoCredenials: aws.Credentials{
