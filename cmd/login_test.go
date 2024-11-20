@@ -6,6 +6,8 @@ import (
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/spf13/viper"
+	"github.com/stretchr/testify/assert"
 )
 
 type MockConfig struct {
@@ -110,4 +112,56 @@ func TestLogin(t *testing.T) {
 			t.Errorf("Expected: %s, Actual: %s", errorMessage, err.Error())
 		}
 	})
+}
+
+func TestLoginConfig(t *testing.T) {
+	cfg := Config{}
+
+	t.Run("should succeed when a valid aws credential and viper struct are passed in", func(t *testing.T) {
+		expiresTime := time.Now()
+		creds := aws.Credentials{
+			AccessKeyID:     "123",
+			SecretAccessKey: "123-secret",
+			SessionToken:    "123-token",
+			Expires:         expiresTime,
+		}
+		vCfg := viper.New()
+		err := cfg.SyncSessionCredentials(creds, vCfg, &SyncSessionCredentialsInput{})
+
+		if assert.NoError(t, err) {
+			assert.Equal(t, creds.AccessKeyID, vCfg.GetString("default.aws_access_key_id"))
+			assert.Equal(t, creds.SecretAccessKey, vCfg.GetString("default.aws_secret_access_key"))
+			assert.Equal(t, creds.SessionToken, vCfg.GetString("default.aws_session_token"))
+		}
+	})
+
+	t.Run("should succeed when a valid aws credential, viper struct, and custom input are passed in", func(t *testing.T) {
+		expiresTime := time.Now()
+		creds := aws.Credentials{
+			AccessKeyID:     "123",
+			SecretAccessKey: "123-secret",
+			SessionToken:    "123-token",
+			Expires:         expiresTime,
+		}
+		vCfg := viper.New()
+		err := cfg.SyncSessionCredentials(creds, vCfg, &SyncSessionCredentialsInput{
+			profile: "test",
+		})
+
+		if assert.NoError(t, err) {
+			assert.Equal(t, creds.AccessKeyID, vCfg.GetString("test.aws_access_key_id"))
+			assert.Equal(t, creds.SecretAccessKey, vCfg.GetString("test.aws_secret_access_key"))
+			assert.Equal(t, creds.SessionToken, vCfg.GetString("test.aws_session_token"))
+		}
+	})
+
+	t.Run("should fail when the viper pointer is nil", func(t *testing.T) {
+		expectedError := errors.New("vConfig cannot be nil")
+		err := cfg.SyncSessionCredentials(aws.Credentials{}, nil, &SyncSessionCredentialsInput{})
+
+		if assert.Error(t, err) {
+			assert.Equal(t, expectedError, err)
+		}
+	})
+
 }

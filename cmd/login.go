@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -13,6 +14,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/ssooidc"
 	"github.com/obscurelyme/jeeves/ini"
 	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 )
 
 var profile string
@@ -36,7 +38,8 @@ type Configurator interface {
 	SSOLogin() error
 	ConfigureSSO() error
 	GetSSOSessionCredentials() (aws.Credentials, error)
-	WriteSessionCredentials(creds aws.Credentials) error
+	WriteSessionCredentials(filename string, vConfig *viper.Viper) error
+	SyncSessionCredentials(creds aws.Credentials, vConfig *viper.Viper, options *SyncSessionCredentialsInput) error
 }
 
 type Config struct {
@@ -103,20 +106,32 @@ func (c *Config) ConfigureSSO() error {
 	return awsCmd.Run()
 }
 
-func (c *Config) WriteSessionCredentials(creds aws.Credentials) error {
-	if profile != "default" {
-		AWSCredentials.Set(fmt.Sprintf("%s.aws_access_key_id", profile), creds.AccessKeyID)
-		AWSCredentials.Set(fmt.Sprintf("%s.aws_secret_access_key", profile), creds.SecretAccessKey)
-		AWSCredentials.Set(fmt.Sprintf("%s.aws_session_token", profile), creds.SessionToken)
-		AWSCredentials.Set(fmt.Sprintf("%s.aws_expires", profile), creds.Expires.String())
-	} else {
-		AWSCredentials.Set("default.aws_access_key_id", creds.AccessKeyID)
-		AWSCredentials.Set("default.aws_secret_access_key", creds.SecretAccessKey)
-		AWSCredentials.Set("default.aws_session_token", creds.SessionToken)
-		AWSCredentials.Set("default.aws_expires", creds.Expires.String())
+type SyncSessionCredentialsInput struct {
+	profile string
+}
+
+func (c *Config) SyncSessionCredentials(creds aws.Credentials, vConfig *viper.Viper, options *SyncSessionCredentialsInput) error {
+	if vConfig == nil {
+		return errors.New("vConfig cannot be nil")
 	}
 
-	return ini.WriteIniFile(AWSCredentialsFilePath, AWSCredentials.AllSettings())
+	if options.profile != "default" && options.profile != "" {
+		vConfig.Set(fmt.Sprintf("%s.aws_access_key_id", options.profile), creds.AccessKeyID)
+		vConfig.Set(fmt.Sprintf("%s.aws_secret_access_key", options.profile), creds.SecretAccessKey)
+		vConfig.Set(fmt.Sprintf("%s.aws_session_token", options.profile), creds.SessionToken)
+		vConfig.Set(fmt.Sprintf("%s.aws_expires", options.profile), creds.Expires.String())
+	} else {
+		vConfig.Set("default.aws_access_key_id", creds.AccessKeyID)
+		vConfig.Set("default.aws_secret_access_key", creds.SecretAccessKey)
+		vConfig.Set("default.aws_session_token", creds.SessionToken)
+		vConfig.Set("default.aws_expires", creds.Expires.String())
+	}
+
+	return nil
+}
+
+func (c *Config) WriteSessionCredentials(filename string, vConfig *viper.Viper) error {
+	return ini.WriteIniFile(filename, vConfig.AllSettings())
 }
 
 type LoginProvider struct {
