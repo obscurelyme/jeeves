@@ -145,7 +145,14 @@ func Login(provider *LoginProvider) error {
 	creds, err := provider.loginConfig.GetSSOSessionCredentials(cfg)
 
 	if err != nil {
-		return err
+		// Login again, because we probably cannot get a refresh token.
+		nerr := provider.loginConfig.SSOLogin()
+		if nerr != nil {
+			return nerr
+		}
+		// NOTE: SSO login succeeded, we are good to go
+		fmt.Println("AWS Login Successful!")
+		return nil
 	}
 
 	if creds.Expired() {
@@ -154,8 +161,6 @@ func Login(provider *LoginProvider) error {
 		if nerr != nil {
 			return nerr
 		}
-		// NOTE: We are now logged in, start over
-		// return Login(provider)
 	}
 
 	// NOTE: This is a VERY optional step in the SSO process btw...
