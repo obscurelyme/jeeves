@@ -100,15 +100,28 @@ func CreateFaasResource() error {
 	client := lambda.NewFromConfig(cfg)
 
 	var defaultTimeout int32 = 30
-	client.CreateFunction(context.TODO(), &lambda.CreateFunctionInput{
-		Code: nil, // TODO: this is required
+	s3BucketName := "example-lambda-apps"
+	s3Key := "nodejs-lambda.zip"
+	var functionCode = types.FunctionCode{
+		S3Bucket: &s3BucketName,
+		S3Key:    &s3Key,
+	}
+
+	_, err = client.CreateFunction(context.TODO(), &lambda.CreateFunctionInput{
+		Code: &functionCode,
 		// FunctionName: "",
-		// Role: "",
-		// Architectures: ""
+		// Role: "", // TODO: each function will either use an existing role or make a new one
+		Architectures: []types.Architecture{types.ArchitectureArm64},
 		// Description: ""
-		// Runtime: "",
+		// Runtime: "", // TODO: based on the user defined template to make
 		Timeout: &defaultTimeout,
+		// Handler: "", // TODO: based on the user defined template to make
 	})
+
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
 
