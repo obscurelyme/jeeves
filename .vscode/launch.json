@@ -11,8 +11,10 @@
       "mode": "debug",
       "program": "${workspaceRoot}",
       "showLog": true,
+      "console": "integratedTerminal",
       "args": [
-        "login"
+        "faas",
+        "create"
       ]
     }
   ]

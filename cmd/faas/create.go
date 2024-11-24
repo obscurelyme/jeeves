@@ -2,8 +2,10 @@ package faas
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
 	"strings"
 
 	"github.com/aws/aws-sdk-go-v2/service/lambda"
@@ -12,6 +14,17 @@ import (
 	"github.com/obscurelyme/jeeves/config"
 	"github.com/spf13/cobra"
 )
+
+// Name of the S3 bucket which holds all example lambda zips
+var S3_BUCKET_NAME string = "example-lambda-apps"
+
+// Owner of the template repos
+var TEMPLATE_REPO_OWNER string = "obscurelyme"
+
+// Basic execution policy for Lambda Functions.
+var LAMBDA_BASIC_EXECUTION_ROLE string = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+
+var CREATE_LAMBDA_REPOSITORY string = "create-lambda-repository"
 
 var createFaasCmd = &cobra.Command{
 	Use:   "create",
@@ -27,8 +40,14 @@ var promptTemplate = &promptui.PromptTemplates{
 }
 
 var selectTemplate = &promptui.SelectTemplates{
-	Label:    "{{ . }}",
-	Selected: "{{ . | cyan }}",
+	Label:    "{{ .Language }}",
+	Active:   "{{ .Language | cyan}}",
+	Inactive: "{{ .Language }}",
+	Selected: "{{ .Language | cyan }}",
+	Details: `
+---------- Function Runtime -----------
+Language: {{ .Language }}
+Runtime: {{ .AWSRuntime }}`,
 }
 
 func createFassCmdHandler(cmd *cobra.Command, args []string) error {
@@ -37,7 +56,7 @@ func createFassCmdHandler(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	_, runtimeName, err := promptLambdaRuntimeSelect()
+	runtimeSelection, err := promptLambdaRuntimeSelect()
 	if err != nil {
 		return err
 	}
@@ -48,13 +67,22 @@ func createFassCmdHandler(cmd *cobra.Command, args []string) error {
 	}
 
 	if confirmed == "y" {
-		fmt.Printf("Creating FaaS resource (%s) with %s runtime...\n", functionName, runtimeName)
+		fmt.Printf("Creating FaaS resource (%s)...\n", functionName)
 	} else {
-		fmt.Printf("Cancelling creation of FaaS resource (%s) with %s runtime...\n", functionName, runtimeName)
+		fmt.Printf("Cancelling creation of FaaS resource (%s)...\n", functionName)
 	}
 
-	return nil
-	// return CreateFaasResource()
+	input := CreateFaaSResourceInput{
+		FunctionName: functionName,
+		Runtime:      &runtimeSelection,
+	}
+
+	err = ProvisionFaasRepo(input)
+	if err != nil {
+		return err
+	}
+
+	return CreateFaasResource(input)
 }
 
 func promptInput() (string, error) {
@@ -67,16 +95,16 @@ func promptInput() (string, error) {
 	return prompt.Run()
 }
 
-func promptLambdaRuntimeSelect() (int, string, error) {
-	items := types.Runtime.Values(types.RuntimeGo1x)
-
+func promptLambdaRuntimeSelect() (LambdaRuntime, error) {
 	prompt := promptui.Select{
 		Label:     "Function Runtime: ",
 		Templates: selectTemplate,
-		Items:     items,
+		Items:     runtimeSelection,
 	}
 
-	return prompt.Run()
+	index, _, err := prompt.Run()
+
+	return runtimeSelection[index], err
 }
 
 func promptConfirm(name string) (string, error) {
@@ -90,7 +118,44 @@ func promptConfirm(name string) (string, error) {
 	return prompt.Run()
 }
 
-func CreateFaasResource() error {
+func ProvisionFaasRepo(input CreateFaaSResourceInput) error {
+	loader := &config.AWSConfigLoader{}
+	cfg, err := loader.LoadAWSConfig(profile)
+
+	if err != nil {
+		return err
+	}
+
+	client := lambda.NewFromConfig(cfg)
+	creds, _ := cfg.Credentials.Retrieve(context.TODO())
+	functionName := fmt.Sprintf("arn:aws:lambda:%s:%s:function:%s", cfg.Region, creds.AccountID, CREATE_LAMBDA_REPOSITORY)
+	data, _ := json.Marshal(&Payload{
+		TemplateRepo:          input.Runtime.TemplateRepo,
+		TemplateOwner:         TEMPLATE_REPO_OWNER,
+		Owner:                 TEMPLATE_REPO_OWNER,
+		RepositoryName:        fmt.Sprintf("%v.lambda", input.FunctionName),
+		RepositoryDescription: "",
+		Visibility:            "public",
+	})
+
+	output, err := client.Invoke(context.TODO(), &lambda.InvokeInput{
+		FunctionName: &functionName,
+		Payload:      data,
+	})
+
+	if err != nil {
+		return err
+	}
+
+	if output.StatusCode == http.StatusOK {
+		fmt.Printf("Github repository for %s created!\n", input.FunctionName)
+		return nil
+	}
+
+	return fmt.Errorf("lambda failed with status code: %d", output.StatusCode)
+}
+
+func CreateFaasResource(input CreateFaaSResourceInput) error {
 	loader := &config.AWSConfigLoader{}
 	cfg, err := loader.LoadAWSConfig(profile)
 
@@ -100,22 +165,20 @@ func CreateFaasResource() error {
 	client := lambda.NewFromConfig(cfg)
 
 	var defaultTimeout int32 = 30
-	s3BucketName := "example-lambda-apps"
-	s3Key := "nodejs-lambda.zip"
 	var functionCode = types.FunctionCode{
-		S3Bucket: &s3BucketName,
-		S3Key:    &s3Key,
+		S3Bucket: &S3_BUCKET_NAME,
+		S3Key:    &input.Runtime.Example,
 	}
 
 	_, err = client.CreateFunction(context.TODO(), &lambda.CreateFunctionInput{
-		Code: &functionCode,
-		// FunctionName: "",
+		Code:         &functionCode,
+		FunctionName: &input.FunctionName,
 		// Role: "", // TODO: each function will either use an existing role or make a new one
 		Architectures: []types.Architecture{types.ArchitectureArm64},
 		// Description: ""
-		// Runtime: "", // TODO: based on the user defined template to make
+		Runtime: input.Runtime.AWSRuntime,
 		Timeout: &defaultTimeout,
-		// Handler: "", // TODO: based on the user defined template to make
+		Handler: &input.Runtime.Handler,
 	})
 
 	if err != nil {
