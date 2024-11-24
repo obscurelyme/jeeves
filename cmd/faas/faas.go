@@ -11,4 +11,5 @@ var FaasRootCmd = &cobra.Command{
 func init() {
 	FaasRootCmd.AddCommand(listFaasCmd)
 	FaasRootCmd.AddCommand(createFaasCmd)
+	FaasRootCmd.AddCommand(deleteFaasCmd)
 }
