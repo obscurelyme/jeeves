@@ -201,7 +201,7 @@ func CreateFaasResource(input CreateFaaSResourceInput) error {
 		return roleErr
 	}
 
-	retry := 3
+	retry := 12 // Keep trying to provide the function for up to 1 minute
 	done := false
 	fmt.Println("This may take some time please be patient\nIAM roles and Policies can take up to 30 seconds\nbefore taking effect...")
 	for retry > -1 && !done {
