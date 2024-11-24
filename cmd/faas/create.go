@@ -7,7 +7,9 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"time"
 
+	"github.com/aws/aws-sdk-go-v2/service/iam"
 	"github.com/aws/aws-sdk-go-v2/service/lambda"
 	"github.com/aws/aws-sdk-go-v2/service/lambda/types"
 	"github.com/manifoldco/promptui"
@@ -25,6 +27,21 @@ var TEMPLATE_REPO_OWNER string = "obscurelyme"
 var LAMBDA_BASIC_EXECUTION_ROLE string = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
 
 var CREATE_LAMBDA_REPOSITORY string = "create-lambda-repository"
+
+var TRUST_POLICY_DOC string = `{
+	"Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Principal": {
+        "Service": "lambda.amazonaws.com"
+      },
+      "Action": "sts:AssumeRole"
+    }
+  ]
+}`
+
+var BASIC_LAMBDA_POLICY_ARN = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
 
 var createFaasCmd = &cobra.Command{
 	Use:   "create",
@@ -82,7 +99,13 @@ func createFassCmdHandler(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	return CreateFaasResource(input)
+	fmt.Printf("Provisioning %s FaaS!\n", input.FunctionName)
+	err = CreateFaasResource(input)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func promptInput() (string, error) {
@@ -155,6 +178,9 @@ func ProvisionFaasRepo(input CreateFaaSResourceInput) error {
 	return fmt.Errorf("lambda failed with status code: %d", output.StatusCode)
 }
 
+// Creates the Lambda Function, this function can take some time due to having
+// to wait for the AWS Policies and Role to take effect so that the lambda
+// may assume the role.
 func CreateFaasResource(input CreateFaaSResourceInput) error {
 	loader := &config.AWSConfigLoader{}
 	cfg, err := loader.LoadAWSConfig(profile)
@@ -170,19 +196,22 @@ func CreateFaasResource(input CreateFaaSResourceInput) error {
 		S3Key:    &input.Runtime.Example,
 	}
 
-	_, err = client.CreateFunction(context.TODO(), &lambda.CreateFunctionInput{
-		Code:         &functionCode,
-		FunctionName: &input.FunctionName,
-		// Role: "", // TODO: each function will either use an existing role or make a new one
-		Architectures: []types.Architecture{types.ArchitectureArm64},
-		// Description: ""
-		Runtime: input.Runtime.AWSRuntime,
-		Timeout: &defaultTimeout,
-		Handler: &input.Runtime.Handler,
-	})
+	roleArn, _, roleErr := CreateLambdaRole(&input)
+	if roleErr != nil {
+		return roleErr
+	}
 
-	if err != nil {
-		return err
+	retry := 3
+	done := false
+	fmt.Println("This may take some time please be patient\nIAM roles and Policies can take up to 30 seconds\nbefore taking effect...")
+	for retry > -1 && !done {
+		done, _ = TryMakeFaaSResource(client, functionCode, defaultTimeout, roleArn, &input)
+		if !done {
+			fmt.Println("...")
+			time.Sleep(5 * time.Second)
+		} else {
+			fmt.Println("...Complete!")
+		}
 	}
 
 	return nil
@@ -196,4 +225,57 @@ func ValidateFunctionName(input string) error {
 		return errors.New("spaces and special characters other than \"-\" are not allowed")
 	}
 	return nil
+}
+
+func CreateLambdaRole(input *CreateFaaSResourceInput) (string, string, error) {
+	loader := config.AWSConfigLoader{}
+	cfg, err := loader.LoadAWSConfig(profile)
+	if err != nil {
+		return "", "", err
+	}
+	iamClient := iam.NewFromConfig(cfg)
+
+	roleName := fmt.Sprintf("%s-IamRole", input.FunctionName)
+	roleOutput, roleErr := iamClient.CreateRole(context.TODO(), &iam.CreateRoleInput{
+		AssumeRolePolicyDocument: &TRUST_POLICY_DOC,
+		RoleName:                 &roleName,
+	})
+
+	if roleErr != nil {
+		return "", "", err
+	}
+
+	_, policyErr := iamClient.AttachRolePolicy(context.TODO(), &iam.AttachRolePolicyInput{
+		PolicyArn: &BASIC_LAMBDA_POLICY_ARN,
+		RoleName:  roleOutput.Role.RoleName,
+	})
+
+	if policyErr != nil {
+		return "", "", policyErr
+	}
+
+	return *roleOutput.Role.Arn, *roleOutput.Role.RoleName, nil
+}
+
+func TryMakeFaaSResource(client *lambda.Client, functionCode types.FunctionCode, defaultTimeout int32, roleArn string, input *CreateFaaSResourceInput) (bool, error) {
+	_, err := client.CreateFunction(context.TODO(), &lambda.CreateFunctionInput{
+		Code:          &functionCode,
+		FunctionName:  &input.FunctionName,
+		Role:          &roleArn,
+		Architectures: []types.Architecture{types.ArchitectureArm64},
+		// Description: ""
+		Runtime: input.Runtime.AWSRuntime,
+		Timeout: &defaultTimeout,
+		Handler: &input.Runtime.Handler,
+	})
+
+	if err != nil {
+		var conflict *types.InvalidParameterValueException
+		if errors.As(err, &conflict) {
+			return false, err
+		}
+		return false, err
+	}
+
+	return true, nil
 }
