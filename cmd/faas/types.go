@@ -43,8 +43,8 @@ var runtimeSelection []LambdaRuntime = []LambdaRuntime{
 	{
 		AWSRuntime:   types.RuntimeJava21,
 		Language:     Java,
-		Handler:      "com.example.app.Function::Handler",
-		Example:      fmt.Sprintf("%s-function.zip", Java),
+		Handler:      "com.example.app.Handler::handleRequest",
+		Example:      fmt.Sprintf("%s-function.jar", Java),
 		TemplateRepo: fmt.Sprintf("%s-lambda", Java),
 	},
 	{
