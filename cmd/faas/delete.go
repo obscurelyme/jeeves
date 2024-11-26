@@ -68,8 +68,8 @@ func DeleteFaaSRepo(cfg aws.Config, name string) error {
 	lambdaClient := lambda.NewFromConfig(cfg)
 	functionName := "delete-lambda-repository"
 	payload, err := json.Marshal(&DeleteRepositoryPayload{
-		RespositoryOwner: "obscurelyme",
-		RepositoryName:   fmt.Sprintf("%s.lambda", name),
+		RepositoryOwner: "obscurelyme",
+		RepositoryName:  fmt.Sprintf("%s.lambda", name),
 	})
 
 	if err != nil {
