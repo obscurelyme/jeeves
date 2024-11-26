@@ -2,8 +2,10 @@ package faas
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/iam"
@@ -57,7 +59,38 @@ func deleteFassCmdHandler(cmd *cobra.Command, args []string) error {
 		fmt.Printf("FaaS resource, %s, was successfully deleted!\n", resourceName)
 	}
 
+	err = DeleteFaaSRepo(cfg, resourceName)
+
 	return err
+}
+
+func DeleteFaaSRepo(cfg aws.Config, name string) error {
+	lambdaClient := lambda.NewFromConfig(cfg)
+	functionName := "delete-lambda-repository"
+	payload, err := json.Marshal(&DeleteRepositoryPayload{
+		RespositoryOwner: "obscurelyme",
+		RepositoryName:   fmt.Sprintf("%s.lambda", name),
+	})
+
+	if err != nil {
+		return nil
+	}
+
+	output, err := lambdaClient.Invoke(context.TODO(), &lambda.InvokeInput{
+		FunctionName: &functionName,
+		Payload:      payload,
+	})
+
+	if err != nil {
+		return err
+	}
+
+	if output.StatusCode == http.StatusOK {
+		fmt.Printf("Github repository for %s deleted!\n", resourceName)
+		return nil
+	}
+
+	return fmt.Errorf("lambda failed with status code: %d", output.StatusCode)
 }
 
 func DeleteFaaSResource(cfg aws.Config) error {

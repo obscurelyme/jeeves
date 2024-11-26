@@ -70,3 +70,9 @@ type Payload struct {
 	RepositoryDescription string `json:"repositoryDescription"`
 	Visibility            string `json:"visibility"`
 }
+
+// Payload to send when deleting a repository after deleting an FaaS resource
+type DeleteRepositoryPayload struct {
+	RespositoryOwner string `json:respositoryOwner`
+	RepositoryName   string `json:repositoryName`
+}
