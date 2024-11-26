@@ -6,6 +6,7 @@ import (
 
 	"github.com/fsnotify/fsnotify"
 	"github.com/obscurelyme/jeeves/cmd/faas"
+	"github.com/obscurelyme/jeeves/cmd/s3"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -29,6 +30,7 @@ func Execute() error {
 func init() {
 	cobra.OnInitialize(initConfig)
 	rootCmd.AddCommand(faas.FaasRootCmd)
+	rootCmd.AddCommand(s3.S3RootCmd)
 }
 
 func initConfig() {
