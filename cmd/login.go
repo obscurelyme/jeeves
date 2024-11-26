@@ -18,6 +18,7 @@ import (
 )
 
 var profile string
+var session bool
 var loginCmd = &cobra.Command{
 	Use:   "login",
 	Short: "Login to AWS",
@@ -28,7 +29,7 @@ var loginCmd = &cobra.Command{
 func init() {
 	loginCmd.PersistentFlags().Bool("sso", true, "Login to AWS via SSO with IAM Identity Center (default \"true\")")
 	loginCmd.PersistentFlags().Bool("assume-role", false, "Assume a role in AWS")
-	loginCmd.PersistentFlags().Bool("session", false, "Generate a session token for AWS")
+	loginCmd.PersistentFlags().BoolVar(&session, "session", false, "Generate a session token for AWS")
 	loginCmd.PersistentFlags().StringVar(&profile, "profile", "default", "AWS Profile to login to")
 	rootCmd.AddCommand(loginCmd)
 }
@@ -183,5 +184,9 @@ func loginToAws(cmd *cobra.Command, args []string) error {
 		profile:     profile,
 	}
 
-	return Login(&provider)
+	if err := Login(&provider); err != nil {
+		return err
+	}
+
+	return nil
 }
