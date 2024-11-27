@@ -3,7 +3,7 @@ package faas
 import (
 	"fmt"
 
-	"github.com/aws/aws-sdk-go-v2/service/lambda/types"
+	lambdaTypes "github.com/aws/aws-sdk-go-v2/service/lambda/types"
 )
 
 type LambdaLanguage string
@@ -15,7 +15,7 @@ const Python LambdaLanguage = "python"
 
 type LambdaRuntime struct {
 	// Internal AWS runtime for the lambda function
-	AWSRuntime types.Runtime
+	AWSRuntime lambdaTypes.Runtime
 	Language   LambdaLanguage
 	// Handler for the lambda function
 	Handler string
@@ -27,28 +27,28 @@ type LambdaRuntime struct {
 
 var runtimeSelection []LambdaRuntime = []LambdaRuntime{
 	{
-		AWSRuntime:   types.RuntimeNodejs20x,
+		AWSRuntime:   lambdaTypes.RuntimeNodejs20x,
 		Language:     NodeJs,
 		Handler:      "dist/index.handler",
 		Example:      fmt.Sprintf("%s-function.zip", NodeJs),
 		TemplateRepo: fmt.Sprintf("%s-lambda", NodeJs),
 	},
 	{
-		AWSRuntime:   types.RuntimeProvidedal2023,
+		AWSRuntime:   lambdaTypes.RuntimeProvidedal2023,
 		Language:     Golang,
 		Handler:      "main",
 		Example:      fmt.Sprintf("%s-function.zip", Golang),
 		TemplateRepo: fmt.Sprintf("%s-lambda", Golang),
 	},
 	{
-		AWSRuntime:   types.RuntimeJava21,
+		AWSRuntime:   lambdaTypes.RuntimeJava21,
 		Language:     Java,
 		Handler:      "com.example.app.Handler::handleRequest",
 		Example:      fmt.Sprintf("%s-function.jar", Java),
 		TemplateRepo: fmt.Sprintf("%s-lambda", Java),
 	},
 	{
-		AWSRuntime:   types.RuntimePython310,
+		AWSRuntime:   lambdaTypes.RuntimePython310,
 		Language:     Python,
 		Handler:      "handler",
 		Example:      fmt.Sprintf("%s-function.zip", Python),
@@ -76,3 +76,12 @@ type DeleteRepositoryPayload struct {
 	RepositoryOwner string `json:"repositoryOwner"`
 	RepositoryName  string `json:"repositoryName"`
 }
+
+type DockerImage string
+
+const (
+	DockerImageNodeJS DockerImage = "amazon/aws-lambda-nodejs"
+	DockerImageJava   DockerImage = "amazon/aws-lambda-java"
+	DockerImagePython DockerImage = "amazon/aws-lambda-python"
+	DockerImageGo     DockerImage = "amazon/aws-lambda-go"
+)
