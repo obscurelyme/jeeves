@@ -17,9 +17,18 @@ import (
 const FAAS_CONFIG_FILE string = "faas.yaml"
 const DOCKERFILE_TEMPLATE string = `FROM %s:%s
 
-# COPY . .
+%s
 
 CMD [ "%s" ]`
+
+const NODEJS_DOCKERFILE_COPY string = `COPY node_modules ${LAMBDA_TASK_ROOT}/node_modules
+COPY dist ${LAMBDA_TASK_ROOT}/dist
+COPY package.json ${LAMBDA_TASK_ROOT}`
+const GOLANG_DOCKERFILE_COPY string = `COPY bootstrap ${LAMBDA_TASK_ROOT}`
+const JAVA_DOCKERFILE_COPY string = `COPY target/classes ${LAMBDA_TASK_ROOT}
+COPY target/dependency/* ${LAMBDA_TASK_ROOT}/lib/`
+const PYTHON_DOCKERFILE_COPY string = `COPY app.py ${LAMBDA_TASK_ROOT}`
+
 const COMPOSE_TEMPLATE string = `services:
   lambda:
     build: .
@@ -116,10 +125,28 @@ func writeDockerfile() error {
 	if err != nil {
 		return err
 	}
+	copyContent, err := getCopyContent(faasRuntime)
+	if err != nil {
+		return err
+	}
 
 	dockerFilePath := fmt.Sprintf("%s/Dockerfile", ConfigPath)
-	dockerFile := fmt.Sprintf(DOCKERFILE_TEMPLATE, dockerImage, dockerImageTag, faasHandler)
+	dockerFile := fmt.Sprintf(DOCKERFILE_TEMPLATE, dockerImage, dockerImageTag, copyContent, faasHandler)
 	return os.WriteFile(dockerFilePath, []byte(dockerFile), 0644)
+}
+
+func getCopyContent(runtime string) (string, error) {
+	if strings.Contains(runtime, "nodejs") {
+		return NODEJS_DOCKERFILE_COPY, nil
+	} else if strings.Contains(runtime, "java") {
+		return JAVA_DOCKERFILE_COPY, nil
+	} else if strings.Contains(runtime, "provided.al2") {
+		return GOLANG_DOCKERFILE_COPY, nil
+	} else if strings.Contains(runtime, "python") {
+		return PYTHON_DOCKERFILE_COPY, nil
+	}
+
+	return "", errors.New("no dockerfile copy content supports given runtime")
 }
 
 func writeComposeFile() error {
