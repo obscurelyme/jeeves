@@ -39,7 +39,9 @@ func TestStartFaaS(t *testing.T) {
 	t.Run("should write up a Dockerfile and docker-compose.yaml file for nodejs", func(t *testing.T) {
 		const expectedDockerFile = `FROM amazon/aws-lambda-nodejs:20
 
-# COPY . .
+COPY node_modules ${LAMBDA_TASK_ROOT}/node_modules
+COPY dist ${LAMBDA_TASK_ROOT}/dist
+COPY package.json ${LAMBDA_TASK_ROOT}
 
 CMD [ "dist/index.js" ]`
 

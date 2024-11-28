@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	lambdaTypes "github.com/aws/aws-sdk-go-v2/service/lambda/types"
+	jeevesEnv "github.com/obscurelyme/jeeves/env"
 	"github.com/obscurelyme/jeeves/utils"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -62,7 +63,37 @@ func startFaasCmdHandler(cmd *cobra.Command, args []string) error {
 		return errors.New("you need to login into AWS first, please run \"jeeves login\" then retry")
 	}
 
+	err = initializeEnvFile()
+	if err != nil {
+		return err
+	}
+
 	return dockerCompose()
+}
+
+// Set up the .env file to contain AWS ENV vars
+//
+// AWS_ACCESS_KEY_ID
+//
+// AWS_SECRET_ACCESS_KEY
+//
+// AWS_SESSION_TOKEN
+func initializeEnvFile() error {
+	envFile, err := jeevesEnv.ReadEnv()
+	if err != nil {
+		return err
+	}
+
+	ssoCreds, err := utils.GetSSOSessionCredentials("default")
+	if err != nil {
+		return err
+	}
+
+	envFile.Set("AWS_ACCESS_KEY_ID", ssoCreds.AccessKeyID)
+	envFile.Set("AWS_SECRET_ACCESS_KEY", ssoCreds.SecretAccessKey)
+	envFile.Set("AWS_SESSION_TOKEN", ssoCreds.SessionToken)
+
+	return envFile.WriteConfig()
 }
 
 func initializeDockerFiles() error {
