@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"fmt"
 	"os"
 	"path"
 
@@ -23,5 +24,8 @@ func init() {
 	AWSConfig.SetConfigName("config")
 
 	err = AWSConfig.ReadInConfig()
-	cobra.CheckErr(err)
+	if err != nil {
+		fmt.Println("Could not read .aws/config file, please run \"jeeves login\" first")
+		os.Exit(1)
+	}
 }
