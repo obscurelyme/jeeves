@@ -5,6 +5,7 @@ import (
 	"path"
 
 	"github.com/fsnotify/fsnotify"
+	"github.com/obscurelyme/jeeves/cmd/ai"
 	"github.com/obscurelyme/jeeves/cmd/faas"
 	"github.com/obscurelyme/jeeves/cmd/s3"
 	"github.com/spf13/cobra"
@@ -31,6 +32,7 @@ func init() {
 	cobra.OnInitialize(initConfig)
 	rootCmd.AddCommand(faas.FaasRootCmd)
 	rootCmd.AddCommand(s3.S3RootCmd)
+	rootCmd.AddCommand(ai.AIRootCmd)
 }
 
 func initConfig() {
