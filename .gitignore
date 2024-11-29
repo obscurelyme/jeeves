@@ -29,3 +29,6 @@ go.work.sum
 Dockerfile
 docker-compose.yaml
 faas.yaml
+
+# VS Code settings
+.vscode/settings.json
