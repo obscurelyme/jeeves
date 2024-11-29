@@ -13,6 +13,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/ssooidc"
 	"github.com/obscurelyme/jeeves/config"
 	"github.com/obscurelyme/jeeves/ini"
+	"github.com/obscurelyme/jeeves/utils"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -58,10 +59,10 @@ func (c *Config) GetSSOSessionCredentials(cfg aws.Config) (aws.Credentials, erro
 	ssoClient := sso.NewFromConfig(cfg)
 	ssoOidcClient := ssooidc.NewFromConfig(cfg)
 
-	ssoSessionName := AWSConfig.GetString(fmt.Sprintf("%s.sso_session", profile))
-	ssoAccountId := AWSConfig.GetString(fmt.Sprintf("%s.sso_account_id", profile))
-	ssoRoleName := AWSConfig.GetString(fmt.Sprintf("%s.sso_role_name", profile))
-	ssoStartUrl := AWSConfig.GetString(fmt.Sprintf("sso-session %s.sso_start_url", ssoSessionName))
+	ssoSessionName := utils.AWSConfig.GetString(fmt.Sprintf("%s.sso_session", profile))
+	ssoAccountId := utils.AWSConfig.GetString(fmt.Sprintf("%s.sso_account_id", profile))
+	ssoRoleName := utils.AWSConfig.GetString(fmt.Sprintf("%s.sso_role_name", profile))
+	ssoStartUrl := utils.AWSConfig.GetString(fmt.Sprintf("sso-session %s.sso_start_url", ssoSessionName))
 
 	tokenPath, err := ssocreds.StandardCachedTokenFilepath(ssoSessionName)
 	if err != nil {

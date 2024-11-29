@@ -9,5 +9,6 @@ var AIRootCmd = &cobra.Command{
 }
 
 func init() {
-	// NOTE: attach AI subcommands
+	AIRootCmd.AddCommand(invokeCmd)
+	AIRootCmd.AddCommand(converseCmd)
 }

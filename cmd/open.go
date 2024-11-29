@@ -4,6 +4,7 @@ import (
 	"log"
 
 	"github.com/icza/gox/osx"
+	"github.com/obscurelyme/jeeves/utils"
 	"github.com/spf13/cobra"
 )
 
@@ -19,7 +20,7 @@ func init() {
 }
 
 func openAWSStart(cmd *cobra.Command, args []string) {
-	startUrl := JeevesConfig.GetString("AWS.SSO.Start")
+	startUrl := utils.JeevesConfig.GetString("AWS.SSO.Start")
 
 	if startUrl == "" {
 		log.Fatalln("No Start URL present in Jeeves config file!")
