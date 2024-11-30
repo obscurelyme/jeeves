@@ -12,6 +12,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+      - name: Install Dependencies
+        run: go mod download
       - name: Lint
         run: go vet ./...
       - name: Test
