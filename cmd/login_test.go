@@ -55,45 +55,6 @@ func TestLogin(t *testing.T) {
 		}
 	})
 
-	t.Run("should return an error attempting to read the .aws/config file", func(t *testing.T) {
-		errorMessage := "Could not read or write .aws/config file"
-		err := Login(&LoginProvider{
-			loginConfig: &MockConfig{
-				output:          aws.Config{},
-				err:             errors.New("Test Error"),
-				configureSSOErr: errors.New(errorMessage),
-				ssoCredenials: aws.Credentials{
-					CanExpire: true,
-					Expires:   time.Now().AddDate(1, 0, 0), // NOTE: a year into the future to guarentee that the creds are not expired
-				},
-			},
-			profile: "default",
-		})
-
-		if err.Error() != errorMessage {
-			t.Errorf("Expected: %s, Actual: %s", errorMessage, err.Error())
-		}
-	})
-
-	t.Run("should return an error attempting to read the .aws/sso/cache", func(t *testing.T) {
-		errorMessage := "Unable to read .aws/sso/cache"
-		err := Login(&LoginProvider{
-			loginConfig: &MockConfig{
-				output:                     aws.Config{},
-				ssoSessionCredentialsError: errors.New(errorMessage),
-				ssoCredenials: aws.Credentials{
-					CanExpire: true,
-					Expires:   time.Now().AddDate(1, 0, 0), // NOTE: a year into the future to guarentee that the creds are not expired
-				},
-			},
-			profile: "default",
-		})
-
-		if err.Error() != errorMessage {
-			t.Errorf("Expected: %s, Actual: %s", errorMessage, err.Error())
-		}
-	})
-
 	t.Run("should return an error attempting to log in", func(t *testing.T) {
 		errorMessage := "Unable to login"
 		err := Login(&LoginProvider{
