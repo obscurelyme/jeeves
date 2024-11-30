@@ -1,0 +1,19 @@
+name: CI/CD
+
+on:
+  push:
+    branches:
+      - '**'
+
+jobs:
+  ci:
+    name: ci/cd
+    runs-on: ubuntu-latest
+    steps:
+      - name: lint
+        run: go vet ./...
+      - name: test
+        run: go test ./...
+      - name: build
+        run: go build
+
