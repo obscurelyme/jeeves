@@ -2,6 +2,7 @@ package utils
 
 import (
 	"context"
+	"errors"
 
 	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"github.com/obscurelyme/jeeves/config"
@@ -19,6 +20,8 @@ func CheckAWSLogin() (bool, error) {
 	if err != nil {
 		return false, err
 	}
+
+	return false, errors.New("Hi")
 
 	return true, nil
 }
