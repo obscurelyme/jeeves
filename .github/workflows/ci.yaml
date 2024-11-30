@@ -7,13 +7,15 @@ on:
 
 jobs:
   ci:
-    name: ci/cd
+    name: ci
     runs-on: ubuntu-latest
     steps:
-      - name: lint
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Lint
         run: go vet ./...
-      - name: test
+      - name: Test
         run: go test ./...
-      - name: build
+      - name: Build
         run: go build
 
