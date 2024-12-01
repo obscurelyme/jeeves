@@ -45,8 +45,20 @@ type TitanTextRequest struct {
 	TextGenerationConfig *TitanTextGenerationConfig `json:"textGenerationConfig"`
 }
 
-type StreamedResponse struct {
-	OutputText string `json:"outputText"`
+type InvocationMetrics struct {
+	InputTokenCount   int `json:"inputTokenCount"`
+	OutputTokenCount  int `json:"outputTokenCount"`
+	InvocationLatency int `json:"invocationLatency"`
+	FirstByteLatency  int `json:"firstByteLatency"`
+}
+
+type TitanTextStreamedResponse struct {
+	OutputText                string            `json:"outputText"`
+	Index                     int               `json:"index"`
+	TotalOutputTextTokenCount int               `json:"totalOutputTextTokenCount"`
+	CompletionReason          string            `json:"completionReason"`
+	InputTextTokenCount       int               `json:"inputTextTokenCount"`
+	InvocationMetrics         InvocationMetrics `json:"amazon-bedrock-invocationMetrics"`
 }
 
 var invokeCmd = &cobra.Command{
@@ -58,7 +70,11 @@ var invokeCmd = &cobra.Command{
 
 func invoke(cfg aws.Config, ctx context.Context) error {
 	input, err := prompt.QuickPrompt("Input > ")
-	if input == "exit" {
+	if input == "exit" || input == "quit" {
+		return nil
+	}
+	if input == "ty" {
+		fmt.Println("You're very welcome!")
 		return nil
 	}
 	if err != nil {
@@ -113,7 +129,7 @@ func InvokeTitanText(cfg aws.Config, ctx context.Context, prompt string) (string
 		return "", err
 	}
 
-	resp, err := processStreamOutput(ctx, streamOutput, func(ctx context.Context, part StreamedResponse) error {
+	resp, err := processStreamOutput(ctx, streamOutput, func(ctx context.Context, part TitanTextStreamedResponse) error {
 		fmt.Print(part.OutputText)
 		return nil
 	})
@@ -124,15 +140,15 @@ func InvokeTitanText(cfg aws.Config, ctx context.Context, prompt string) (string
 	return resp.OutputText, nil
 }
 
-type StreamingOutputHandler func(ctx context.Context, part StreamedResponse) error
+type StreamingOutputHandler func(ctx context.Context, part TitanTextStreamedResponse) error
 
-func processStreamOutput(ctx context.Context, output *bedrockruntime.InvokeModelWithResponseStreamOutput, handler StreamingOutputHandler) (StreamedResponse, error) {
-	resp := StreamedResponse{}
+func processStreamOutput(ctx context.Context, output *bedrockruntime.InvokeModelWithResponseStreamOutput, handler StreamingOutputHandler) (TitanTextStreamedResponse, error) {
+	resp := TitanTextStreamedResponse{}
 
 	for event := range output.GetStream().Events() {
 		switch v := event.(type) {
 		case *types.ResponseStreamMemberChunk:
-			var presp *StreamedResponse
+			var presp *TitanTextStreamedResponse
 			err := json.Unmarshal(v.Value.Bytes, &presp)
 			if err != nil {
 				return *presp, err
@@ -150,17 +166,3 @@ func processStreamOutput(ctx context.Context, output *bedrockruntime.InvokeModel
 
 	return resp, nil
 }
-
-// {
-//   "outputText":"\nThe sum of 2+2 is 4, the sum of 5+5 is 10, and the product of 10*6 is 60.",
-//   "index":0,
-//   "totalOutputTextTokenCount":39,
-//   "completionReason":"FINISH",
-//   "inputTextTokenCount":19,
-//   "amazon-bedrock-invocationMetrics": {
-//     "inputTokenCount":19,
-//     "outputTokenCount":39,
-//     "invocationLatency":6948,
-//     "firstByteLatency":6946
-//   }
-// }
