@@ -1,22 +1,24 @@
 package prompt
 
 import (
-	"errors"
-
-	"github.com/manifoldco/promptui"
+	"bufio"
+	"fmt"
+	"os"
+	"strings"
 )
 
 // Executes a basic prompt for quick end-user input
 func QuickPrompt(label string) (string, error) {
-	p := promptui.Prompt{
-		Label: label,
-		Validate: func(s string) error {
-			if len(s) == 0 {
-				return errors.New("input is required")
-			}
-			return nil
-		},
+	var s string
+	r := bufio.NewReader(os.Stdin)
+
+	for {
+		fmt.Fprint(os.Stderr, label+" ")
+		s, _ = r.ReadString('\n')
+		if s != "" {
+			break
+		}
 	}
 
-	return p.Run()
+	return strings.TrimSpace(s), nil
 }
