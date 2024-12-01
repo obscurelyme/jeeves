@@ -10,6 +10,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/bedrockruntime/types"
 	"github.com/obscurelyme/jeeves/config"
 	"github.com/obscurelyme/jeeves/prompt"
+	"github.com/obscurelyme/jeeves/utils"
 	"github.com/spf13/cobra"
 )
 
@@ -105,7 +106,7 @@ func invokeCmdHandler(cmd *cobra.Command, args []string) error {
 
 func InvokeTitanText(cfg aws.Config, ctx context.Context, prompt string) (string, error) {
 	bedrockClient := bedrockruntime.NewFromConfig(cfg)
-	modelId := "amazon.titan-text-lite-v1"
+	modelId := utils.Jeeves.ConfigSettings.AI.PreferredModel
 
 	body, err := json.Marshal(TitanTextRequest{
 		InputText: prompt,
