@@ -14,7 +14,8 @@
       "console": "integratedTerminal",
       "args": [
         "ai",
-        "invoke"
+        "--model-id",
+        "amazon.titan-text-premier-v1:0"
       ]
     }
   ]

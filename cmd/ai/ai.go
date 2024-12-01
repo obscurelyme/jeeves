@@ -34,6 +34,8 @@ func aiRootCmdHandler(cmd *cobra.Command, args []string) error {
 	}
 
 	if slices.Contains(utils.Jeeves.ConfigSettings.AI.ApprovedModels, modelId) {
+		fmt.Printf("Setting preferred model to: %s\n", modelId)
+		utils.Jeeves.ConfigSettings.AI.PreferredModel = modelId
 		return utils.Jeeves.WriteConfig()
 	} else {
 		return fmt.Errorf("%s is not an approved valid model", modelId)
