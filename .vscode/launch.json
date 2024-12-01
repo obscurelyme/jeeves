@@ -13,8 +13,9 @@
       "showLog": true,
       "console": "integratedTerminal",
       "args": [
-        "faas",
-        "create"
+        "ai",
+        "--model-id",
+        "amazon.titan-text-premier-v1:0"
       ]
     }
   ]
