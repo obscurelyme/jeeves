@@ -69,6 +69,15 @@ var invokeCmd = &cobra.Command{
 	RunE:  invokeCmdHandler,
 }
 
+func tokenCount(modelId string) int32 {
+	switch modelId {
+	case "amazon.titan-text-premier-v1:0":
+		return 521
+	default:
+		return 4096
+	}
+}
+
 func invoke(cfg aws.Config, ctx context.Context) error {
 	input, err := prompt.QuickPrompt("Input > ")
 	if input == "exit" || input == "quit" {
@@ -113,7 +122,7 @@ func InvokeTitanText(cfg aws.Config, ctx context.Context, prompt string) (string
 		TextGenerationConfig: &TitanTextGenerationConfig{
 			Temperature:   0,
 			TopP:          1,
-			MaxTokenCount: 4096,
+			MaxTokenCount: tokenCount(modelId),
 		},
 	})
 	if err != nil {
