@@ -8,6 +8,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/bedrockruntime"
 	"github.com/obscurelyme/jeeves/config"
+	"github.com/obscurelyme/jeeves/prompt"
 	"github.com/spf13/cobra"
 )
 
@@ -50,6 +51,25 @@ var invokeCmd = &cobra.Command{
 	RunE:  invokeCmdHandler,
 }
 
+func invoke(cfg aws.Config, ctx context.Context) error {
+	input, err := prompt.QuickPrompt("Input > ")
+	if input == "exit" {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+
+	fmt.Print("thinking...\n\n")
+	res, err := InvokeTitanText(cfg, ctx, input)
+	if err != nil {
+		return err
+	}
+	fmt.Printf("%s\n---\n\n", res)
+
+	return invoke(cfg, ctx)
+}
+
 func invokeCmdHandler(cmd *cobra.Command, args []string) error {
 	ctx := context.Background()
 	loader := config.AWSConfigLoader{}
@@ -58,12 +78,7 @@ func invokeCmdHandler(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	res, err := InvokeTitanText(cfg, ctx, "Can you write up a \"Hello, World\" program in Golang?")
-	if err != nil {
-		return err
-	}
-	fmt.Println(res)
-	return nil
+	return invoke(cfg, ctx)
 }
 
 func InvokeTitanText(cfg aws.Config, ctx context.Context, prompt string) (string, error) {
