@@ -1,0 +1,5 @@
+FROM %s:%s
+
+COPY bootstrap ${LAMBDA_TASK_ROOT}
+
+CMD [ "bootstrap" ]

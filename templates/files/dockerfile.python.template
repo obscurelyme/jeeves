@@ -1,0 +1,10 @@
+FROM %s:%s
+
+RUN pip3 install debugpy
+
+COPY app ${LAMBDA_TASK_ROOT}/app
+
+# Override the bootstrap script to allow for debugging
+COPY bootstrap.sh /var/runtime/bootstrap
+
+CMD [ "%s" ]
