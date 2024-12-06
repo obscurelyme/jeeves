@@ -30,6 +30,7 @@ func init() {
 
 func initConfig() {
 	utils.LoadAWSConfig()
+	// TODO: need to check for an invalid config, else quit app and print err here
 	utils.LoadJeevesConfig()
 
 	viper.AutomaticEnv()
