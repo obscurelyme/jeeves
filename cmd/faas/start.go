@@ -48,7 +48,6 @@ func startFaasCmdHandler(cmd *cobra.Command, args []string) error {
 
 	faasRuntime := faasConfig.GetString("function.runtime")
 	faasHandler := faasConfig.GetString("function.handler")
-
 	isLoggedIn, _ := CheckAWSLogin()
 	if !isLoggedIn {
 		return errors.New("you need to login into AWS first, please run \"jeeves login\" then retry")
@@ -57,19 +56,6 @@ func startFaasCmdHandler(cmd *cobra.Command, args []string) error {
 	err = initializeDockerFiles(faasRuntime, faasHandler)
 	if err != nil {
 		return err
-	}
-
-	if strings.Contains(faasRuntime, "python") {
-		// Ensure we have an active venv
-		if !pythonUtils.VirtualEnvActive() {
-			return errors.New("no python venv is active")
-		}
-		// NOTE: write the bootstrap file
-		script := python.New(ConfigPath, lambdaTypes.Runtime(faasRuntime))
-		err = script.WriteFile()
-		if err != nil {
-			return err
-		}
 	}
 
 	err = initializeEnvFile()
@@ -152,11 +138,28 @@ func checkFaasDockerConfig() bool {
 
 func writeDockerfile(faasRuntime string, faasHandler string) error {
 	var dockerFile templates.DockerFileWriter
+	var venv *pythonUtils.PythonVirtualEnv = nil
+
+	if strings.Contains(faasRuntime, "python") {
+		venv = pythonUtils.NewPythonVirtualEnv()
+		// Ensure we have an active venv
+		// NOTE: This could most likely be removed
+		if !pythonUtils.VirtualEnvActive() {
+			return errors.New("no python venv is active")
+		}
+		// NOTE: write the bootstrap file
+		script := python.New(ConfigPath, lambdaTypes.Runtime(faasRuntime))
+		err := script.WriteFile()
+		if err != nil {
+			return err
+		}
+	}
 
 	dockerFile, err := templates.NewDockerFile(&templates.NewDockerFileInput{
-		Runtime:  faasRuntime,
-		Handler:  faasHandler,
-		FilePath: ConfigPath,
+		Runtime:    faasRuntime,
+		Handler:    faasHandler,
+		FilePath:   ConfigPath,
+		VirtualEnv: venv,
 	})
 
 	if err != nil {

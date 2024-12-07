@@ -110,6 +110,8 @@ type NewDockerFileInput struct {
 	Handler string
 	// Directory location the dockerfile will be written to
 	FilePath string
+	// Virtual Environment, used for Python
+	VirtualEnv pythonUtils.PythonVirtualEnvDriver
 }
 
 func NewDockerFile(input *NewDockerFileInput) (DockerFileWriter, error) {
@@ -147,13 +149,17 @@ func NewJavaDockerFile(input *NewDockerFileInput) (DockerFileWriter, error) {
 func NewPythonDockerFile(input *NewDockerFileInput) (DockerFileWriter, error) {
 	pdf := new(DockerFile)
 
+	if input.VirtualEnv == nil {
+		return nil, errors.New("creation of python dockerfile requires a venv driver")
+	}
+
 	// NOTE: you need to be in the root workspace of the venv for this to work
-	err := pythonUtils.CwdIsVenv()
+	err := input.VirtualEnv.CwdContainsVenv()
 	if err != nil {
 		return nil, err
 	}
 
-	depsPath, err := pythonUtils.PythonDependenciesPath()
+	depsPath, err := input.VirtualEnv.DependencyPath()
 	if err != nil {
 		return nil, err
 	}

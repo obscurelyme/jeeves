@@ -8,35 +8,67 @@ import (
 	"strings"
 )
 
-func VirtualEnvActive() bool {
-	return os.Getenv("VIRTUAL_ENV") != ""
+const VIRTUAL_ENV string = "VIRTUAL_ENV"
+const VIRTUAL_ENV_PROMPT string = "VIRTUAL_ENV_PROMPT"
+
+type PythonVirtualEnvDriver interface {
+	// The full filepath to the virtual environment
+	Path() string
+	// The name of the virtual environment
+	Name() (string, error)
+	// Checks if the current working directory contains the active virtual environment
+	CwdContainsVenv() error
+	// Returns a formatted version of the python bin used for this virtual environment
+	//
+	// format style examples: python3.9, python3.10, python3.11, python3.12
+	PythonVersion() (string, error)
+	// The path to the python dependencies for the active virtual environment
+	DependencyPath() (string, error)
 }
 
-func VirtualEnv() string {
-	return os.Getenv("VIRTUAL_ENV")
+type PythonVirtualEnv struct {
 }
 
-func VirtualEnvPath() (string, error) {
-	venvFullPath := VirtualEnv()
-	dir, err := os.Getwd()
-	if err != nil {
-		return "", err
-	}
-	if venvFullPath == "" {
+func (venv *PythonVirtualEnv) Path() string {
+	return os.Getenv(VIRTUAL_ENV)
+}
+
+func (venv *PythonVirtualEnv) Name() (string, error) {
+	venvName := os.Getenv(VIRTUAL_ENV_PROMPT)
+
+	if venvName == "" {
 		return "", errors.New("no python venv is active")
 	}
-	if !strings.Contains(venvFullPath, dir+"/") {
-		return "", errors.New("cwd is not within your venv")
-	}
 
-	strs := strings.Split(venvFullPath, dir+"/")
-	if len(strs) < 2 {
-		return "", errors.New("venv is not located within the project directory")
-	}
-	return strs[1], nil
+	venvName = strings.ReplaceAll(venvName, "(", "")
+	venvName = strings.ReplaceAll(venvName, ")", "")
+	venvName = strings.TrimSpace(venvName)
+
+	return venvName, nil
 }
 
-func PythonVersion() (string, error) {
+func (venv *PythonVirtualEnv) CwdContainsVenv() error {
+	path := venv.Path()
+	name, err := venv.Name()
+	if err != nil {
+		return err
+	}
+
+	venvCwd, _ := strings.CutSuffix(path, name)
+
+	cwd, err := os.Getwd()
+	if err != nil {
+		return err
+	}
+
+	if venvCwd != cwd+"/" {
+		return errors.New("python venv is not within your cwd")
+	}
+
+	return nil
+}
+
+func (venv *PythonVirtualEnv) PythonVersion() (string, error) {
 	cmd := exec.Command("python", "-V")
 
 	data, err := cmd.Output()
@@ -48,22 +80,13 @@ func PythonVersion() (string, error) {
 	return formatPythonVersion(string(data)), nil
 }
 
-func formatPythonVersion(version string) string {
-	split := strings.Split(version, " ")
-	versionNumber := split[1]
-	nums := strings.Split(versionNumber, ".")
-
-	return fmt.Sprintf("python%s.%s", nums[0], nums[1])
-}
-
-// Returns the path of the python dependencies based on the currently active python venv
-func PythonDependenciesPath() (string, error) {
-	venvName, err := VirtualEnvName()
+func (venv *PythonVirtualEnv) DependencyPath() (string, error) {
+	venvName, err := venv.Name()
 	if err != nil {
 		return "", err
 	}
 
-	version, err := PythonVersion()
+	version, err := venv.PythonVersion()
 	if err != nil {
 		return "", err
 	}
@@ -71,47 +94,19 @@ func PythonDependenciesPath() (string, error) {
 	return fmt.Sprintf("%s/lib/%s/site-packages", venvName, version), nil
 }
 
-// Checks if the current working directory contains the active python venv
-func CwdIsVenv() error {
-	venvPath := VirtualEnv()
-	venvName := os.Getenv("VIRTUAL_ENV_PROMPT")
-
-	if venvPath == "" || venvName == "" {
-		return errors.New("no python venv is active")
-	}
-
-	// NOTE: remove ".tox" if it exists because tox will place the venv in its own directory.
-	// which the user does not need to cd into
-	venvPath = strings.Replace(venvPath, ".tox/", "", 1)
-
-	venvName = strings.ReplaceAll(venvName, "(", "")
-	venvName = strings.ReplaceAll(venvName, ")", "")
-	venvName = strings.TrimSpace(venvName)
-
-	venvCwd, _ := strings.CutSuffix(venvPath, venvName)
-
-	dir, err := os.Getwd()
-	if err != nil {
-		return err
-	}
-
-	if venvCwd != dir+"/" {
-		return errors.New("python venv is not within your cwd")
-	}
-
-	return nil
+func NewPythonVirtualEnv() *PythonVirtualEnv {
+	venv := new(PythonVirtualEnv)
+	return venv
 }
 
-func VirtualEnvName() (string, error) {
-	venvName := os.Getenv("VIRTUAL_ENV_PROMPT")
+func VirtualEnvActive() bool {
+	return os.Getenv("VIRTUAL_ENV") != ""
+}
 
-	if venvName == "" {
-		return "", errors.New("no python venv is active")
-	}
+func formatPythonVersion(version string) string {
+	split := strings.Split(version, " ")
+	versionNumber := split[1]
+	nums := strings.Split(versionNumber, ".")
 
-	venvName = strings.ReplaceAll(venvName, "(", "")
-	venvName = strings.ReplaceAll(venvName, ")", "")
-	venvName = strings.TrimSpace(venvName)
-
-	return venvName, nil
+	return fmt.Sprintf("python%s.%s", nums[0], nums[1])
 }
