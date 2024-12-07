@@ -21,9 +21,6 @@ var dockerFileJava string
 //go:embed files/dockerfile.go.template
 var dockerFileGo string
 
-//go:embed scripts/bootstrap.python.sh
-var bootstrapPython string
-
 func GetDockerTemplate(runtime lambdaTypes.Runtime) (string, error) {
 	switch runtime {
 	case lambdaTypes.RuntimeNodejs20x:

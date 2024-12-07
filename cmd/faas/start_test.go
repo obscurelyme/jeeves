@@ -47,7 +47,7 @@ CMD [ "dist/index.js" ]`
 
 		setup(tmpDir, nodejsYaml)
 
-		err := initializeDockerFiles()
+		err := initializeDockerFiles("nodejs20.x", "dist/index.js")
 		if err != nil {
 			t.Errorf("expected no errors, but received \"%s\"", err.Error())
 		}

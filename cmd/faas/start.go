@@ -11,7 +11,9 @@ import (
 	lambdaTypes "github.com/aws/aws-sdk-go-v2/service/lambda/types"
 	jeevesEnv "github.com/obscurelyme/jeeves/env"
 	"github.com/obscurelyme/jeeves/templates"
+	"github.com/obscurelyme/jeeves/templates/scripts/python"
 	"github.com/obscurelyme/jeeves/utils"
+	pythonUtils "github.com/obscurelyme/jeeves/utils/python"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -40,7 +42,15 @@ func init() {
 }
 
 func startFaasCmdHandler(cmd *cobra.Command, args []string) error {
-	err := initializeDockerFiles()
+	faasConfig, err := ReadLambdaConfig()
+	if err != nil {
+		return err
+	}
+
+	faasRuntime := faasConfig.GetString("function.runtime")
+	faasHandler := faasConfig.GetString("function.handler")
+
+	err = initializeDockerFiles(faasRuntime, faasHandler)
 	if err != nil {
 		return err
 	}
@@ -50,12 +60,27 @@ func startFaasCmdHandler(cmd *cobra.Command, args []string) error {
 		return errors.New("you need to login into AWS first, please run \"jeeves login\" then retry")
 	}
 
+	if strings.Contains(faasRuntime, "python") {
+		// NOTE: write the bootstrap file
+		script := python.New(ConfigPath, lambdaTypes.Runtime(faasRuntime))
+		err = script.WriteConfig()
+		if err != nil {
+			return err
+		}
+		// NOTE: check for the venv and log
+		s, err := pythonUtils.PythonDependenciesPath()
+		if err != nil {
+			return err
+		}
+		fmt.Println(s)
+	}
+
 	err = initializeEnvFile()
 	if err != nil {
 		return err
 	}
 
-	return dockerCompose()
+	return nil //dockerCompose()
 }
 
 // Set up the .env file to contain AWS ENV vars
@@ -83,16 +108,16 @@ func initializeEnvFile() error {
 	return envFile.WriteConfig()
 }
 
-func initializeDockerFiles() error {
+func initializeDockerFiles(faasRuntime string, faasHandler string) error {
 	isConfigured := checkFaasDockerConfig()
 
 	if !isConfigured {
-		err := writeDockerfile()
+		err := writeDockerfile(faasRuntime, faasHandler)
 		if err != nil {
 			return err
 		}
 
-		err = writeComposeFile()
+		err = writeComposeFile(faasRuntime)
 		if err != nil {
 			return err
 		}
@@ -126,15 +151,7 @@ func checkFaasDockerConfig() bool {
 	return false
 }
 
-func writeDockerfile() error {
-	faasConfig, err := ReadLambdaConfig()
-	if err != nil {
-		return err
-	}
-
-	faasRuntime := faasConfig.GetString("function.runtime")
-	faasHandler := faasConfig.GetString("function.handler")
-
+func writeDockerfile(faasRuntime string, faasHandler string) error {
 	dockerImage, err := getDockerImage(lambdaTypes.Runtime(faasRuntime))
 	if err != nil {
 		return err
@@ -152,7 +169,8 @@ func writeDockerfile() error {
 	return os.WriteFile(dockerFilePath, []byte(dockerFile), 0644)
 }
 
-func writeComposeFile() error {
+func writeComposeFile(faasRuntime string) error {
+	// TODO: need to work with the runtime param to determine what kind of compose file the user gets
 	composeFilePath := fmt.Sprintf("%s/docker-compose.yaml", ConfigPath)
 	return os.WriteFile(composeFilePath, []byte(COMPOSE_TEMPLATE), 0644)
 }
