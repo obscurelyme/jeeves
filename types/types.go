@@ -1,4 +1,4 @@
-package faas
+package types
 
 import (
 	"fmt"
@@ -25,7 +25,7 @@ type LambdaRuntime struct {
 	TemplateRepo string
 }
 
-var runtimeSelection []LambdaRuntime = []LambdaRuntime{
+var RuntimeSelectionOptions []LambdaRuntime = []LambdaRuntime{
 	{
 		AWSRuntime:   lambdaTypes.RuntimeNodejs20x,
 		Language:     NodeJs,

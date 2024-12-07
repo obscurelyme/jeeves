@@ -13,9 +13,8 @@
       "showLog": true,
       "console": "integratedTerminal",
       "args": [
-        "ai",
-        "--model-id",
-        "amazon.titan-text-premier-v1:0"
+        "faas",
+        "start"
       ]
     }
   ]

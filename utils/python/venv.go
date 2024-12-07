@@ -25,6 +25,10 @@ func VirtualEnvPath() (string, error) {
 	if venvFullPath == "" {
 		return "", errors.New("no python venv is active")
 	}
+	if !strings.Contains(venvFullPath, dir+"/") {
+		return "", errors.New("cwd is not within your venv")
+	}
+
 	strs := strings.Split(venvFullPath, dir+"/")
 	if len(strs) < 2 {
 		return "", errors.New("venv is not located within the project directory")
@@ -54,7 +58,7 @@ func formatPythonVersion(version string) string {
 
 // Returns the path of the python dependencies based on the currently active python venv
 func PythonDependenciesPath() (string, error) {
-	venvPath, err := VirtualEnvPath()
+	venvName, err := VirtualEnvName()
 	if err != nil {
 		return "", err
 	}
@@ -64,5 +68,50 @@ func PythonDependenciesPath() (string, error) {
 		return "", err
 	}
 
-	return fmt.Sprintf("%s/lib/%s/site-packages", venvPath, version), nil
+	return fmt.Sprintf("%s/lib/%s/site-packages", venvName, version), nil
+}
+
+// Checks if the current working directory contains the active python venv
+func CwdIsVenv() error {
+	venvPath := VirtualEnv()
+	venvName := os.Getenv("VIRTUAL_ENV_PROMPT")
+
+	if venvPath == "" || venvName == "" {
+		return errors.New("no python venv is active")
+	}
+
+	// NOTE: remove ".tox" if it exists because tox will place the venv in its own directory.
+	// which the user does not need to cd into
+	venvPath = strings.Replace(venvPath, ".tox/", "", 1)
+
+	venvName = strings.ReplaceAll(venvName, "(", "")
+	venvName = strings.ReplaceAll(venvName, ")", "")
+	venvName = strings.TrimSpace(venvName)
+
+	venvCwd, _ := strings.CutSuffix(venvPath, venvName)
+
+	dir, err := os.Getwd()
+	if err != nil {
+		return err
+	}
+
+	if venvCwd != dir+"/" {
+		return errors.New("python venv is not within your cwd")
+	}
+
+	return nil
+}
+
+func VirtualEnvName() (string, error) {
+	venvName := os.Getenv("VIRTUAL_ENV_PROMPT")
+
+	if venvName == "" {
+		return "", errors.New("no python venv is active")
+	}
+
+	venvName = strings.ReplaceAll(venvName, "(", "")
+	venvName = strings.ReplaceAll(venvName, ")", "")
+	venvName = strings.TrimSpace(venvName)
+
+	return venvName, nil
 }

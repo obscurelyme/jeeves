@@ -4,8 +4,12 @@ import (
 	_ "embed"
 	"errors"
 	"fmt"
+	"os"
+	"regexp"
+	"strings"
 
 	lambdaTypes "github.com/aws/aws-sdk-go-v2/service/lambda/types"
+	"github.com/obscurelyme/jeeves/types"
 	pythonUtils "github.com/obscurelyme/jeeves/utils/python"
 	"github.com/spf13/viper"
 )
@@ -92,41 +96,129 @@ type DockerFileWriter interface {
 
 type DockerFile struct {
 	dockerFile string
+	filePath   string
 }
 
 func (df *DockerFile) WriteFile() error {
-	return nil
+	return os.WriteFile(df.filePath, []byte(df.dockerFile), 0644)
+}
+
+type NewDockerFileInput struct {
+	// Lambda runtime
+	Runtime string
+	// Handler of the lambda function
+	Handler string
+	// Directory location the dockerfile will be written to
+	FilePath string
+}
+
+func NewDockerFile(input *NewDockerFileInput) (DockerFileWriter, error) {
+	if strings.Contains(string(input.Runtime), "nodejs") {
+		return NewNodeJSDockerFile(input)
+	} else if strings.Contains(string(input.Runtime), "python") {
+		return NewPythonDockerFile(input)
+	} else if strings.Contains(string(input.Runtime), "provided.al2") {
+		return NewGoDockerFile(input)
+	} else if strings.Contains(string(input.Runtime), "java") {
+		return NewJavaDockerFile(input)
+	}
+
+	return nil, errors.New("no docker image supports given runtime")
 }
 
 // Creates a new JavaDockerFile writer ready to write a properly formatted Dockerfile for Java lambdas
-func NewJavaDockerFile(runtime lambdaTypes.Runtime) (DockerFileWriter, error) {
+func NewJavaDockerFile(input *NewDockerFileInput) (DockerFileWriter, error) {
 	jdf := new(DockerFile)
 
-	jdf.dockerFile = dockerFileJava
+	// TODO: need to modify the pom.xml file to include maven-copy-dependencies plugin and add it to the compile/package step
+
+	tag, err := getDockerImageTag(lambdaTypes.Runtime(input.Runtime))
+	if err != nil {
+		return nil, err
+	}
+
+	jdf.dockerFile = fmt.Sprintf(dockerFileJava, string(types.DockerImageJava), tag, input.Handler)
+	jdf.filePath = fmt.Sprintf("%s/Dockerfile", input.FilePath)
 
 	return jdf, nil
 }
 
 // Creates a new PythonDockerFile writer ready to write a properly formatted Dockerfile for Python lambdas
-func NewPythonDockerFile(runtime lambdaTypes.Runtime) (DockerFileWriter, error) {
+func NewPythonDockerFile(input *NewDockerFileInput) (DockerFileWriter, error) {
 	pdf := new(DockerFile)
+
+	// NOTE: you need to be in the root workspace of the venv for this to work
+	err := pythonUtils.CwdIsVenv()
+	if err != nil {
+		return nil, err
+	}
 
 	depsPath, err := pythonUtils.PythonDependenciesPath()
 	if err != nil {
 		return nil, err
 	}
 
-	pdf.dockerFile = fmt.Sprintf(dockerFilePython, "image", "tag", depsPath, "handler")
+	tag, err := getDockerImageTag(lambdaTypes.Runtime(input.Runtime))
+	if err != nil {
+		return nil, err
+	}
+
+	pdf.filePath = fmt.Sprintf("%s/Dockerfile", input.FilePath)
+	pdf.dockerFile = fmt.Sprintf(
+		dockerFilePython,
+		string(types.DockerImagePython),
+		tag,
+		depsPath,
+		input.Handler,
+	)
 
 	return pdf, nil
 }
 
 // Creates a new GoDockerFile writer ready to write a properly formatted Dockerfile for Go lambdas
-func NewGoDockerFile(runtime lambdaTypes.Runtime) (DockerFileWriter, error) {
-	return nil, nil
+func NewGoDockerFile(input *NewDockerFileInput) (DockerFileWriter, error) {
+	gdf := new(DockerFile)
+
+	tag, err := getDockerImageTag(lambdaTypes.Runtime(input.Runtime))
+	if err != nil {
+		return nil, err
+	}
+
+	gdf.dockerFile = fmt.Sprintf(dockerFileGo, string(types.DockerImageGo), tag)
+	gdf.filePath = fmt.Sprintf("%s/Dockerfile", input.FilePath)
+
+	return gdf, nil
 }
 
 // Creates a new NodeJSDockerFile writer ready to write a properly formatted Dockerfile for NodeJS lambdas
-func NewNodeJSDockerFile(runtime lambdaTypes.Runtime) (DockerFileWriter, error) {
-	return nil, nil
+func NewNodeJSDockerFile(input *NewDockerFileInput) (DockerFileWriter, error) {
+	ndf := new(DockerFile)
+
+	tag, err := getDockerImageTag(lambdaTypes.Runtime(input.Runtime))
+	if err != nil {
+		return nil, err
+	}
+
+	ndf.filePath = fmt.Sprintf("%s/Dockerfile", input.FilePath)
+	ndf.dockerFile = fmt.Sprintf(dockerFileNodeJS, string(types.DockerImageNodeJS), tag, input.Handler)
+
+	return ndf, nil
+}
+
+func getDockerImageTag(runtime lambdaTypes.Runtime) (string, error) {
+	const latestTag string = "latest"
+
+	if strings.Contains(string(runtime), "nodejs") {
+		regx := regexp.MustCompile("[0-9]+")
+		tag := regx.FindString(string(runtime))
+		return tag, nil
+	} else if strings.Contains(string(runtime), "python") {
+		return strings.Split(string(runtime), "python")[1], nil
+	} else if strings.Contains(string(runtime), "provided.al2") {
+		return latestTag, nil
+	} else if strings.Contains(string(runtime), "java") {
+		return strings.Split(string(runtime), "java")[1], nil
+	}
+
+	return "", errors.New("no docker image supports given runtime")
 }

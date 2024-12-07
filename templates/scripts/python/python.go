@@ -25,6 +25,6 @@ func New(configPath string, runtime lambdaTypes.Runtime) *PythonBootstrapScript 
 	return script
 }
 
-func (pbs *PythonBootstrapScript) WriteConfig() error {
+func (pbs *PythonBootstrapScript) WriteFile() error {
 	return os.WriteFile(fmt.Sprintf("%s/bootstrap.sh", pbs.configPath), []byte(pbs.boostrapScript), 0755)
 }
