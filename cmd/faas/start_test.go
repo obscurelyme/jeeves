@@ -47,22 +47,26 @@ CMD [ "dist/index.js" ]`
 
 		setup(tmpDir, nodejsYaml)
 
-		err := initializeDockerFiles()
+		err := initializeDockerFiles("nodejs20.x", "dist/index.js")
 		if err != nil {
 			t.Errorf("expected no errors, but received \"%s\"", err.Error())
+			return
 		}
 
 		dockerFile, err := readFile(tmpDir, "Dockerfile")
 		if err != nil {
 			t.Errorf("expected no errors reading Dockerfile, but receieved \"%s\"", err.Error())
+			return
 		}
 		composeFile, err := readFile(tmpDir, "docker-compose.yaml")
 		if err != nil {
 			t.Errorf("expected no errors reading docker-compose.yaml, but receieved \"%s\"", err.Error())
+			return
 		}
 
 		if composeFile != COMPOSE_TEMPLATE {
 			t.Errorf("compose file written did not match the template")
+			return
 		}
 
 		if dockerFile != expectedDockerFile {

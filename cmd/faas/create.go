@@ -11,9 +11,10 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/service/iam"
 	"github.com/aws/aws-sdk-go-v2/service/lambda"
-	"github.com/aws/aws-sdk-go-v2/service/lambda/types"
+	lambdaTypes "github.com/aws/aws-sdk-go-v2/service/lambda/types"
 	"github.com/manifoldco/promptui"
 	"github.com/obscurelyme/jeeves/config"
+	"github.com/obscurelyme/jeeves/types"
 	"github.com/spf13/cobra"
 )
 
@@ -89,7 +90,7 @@ func createFassCmdHandler(cmd *cobra.Command, args []string) error {
 		fmt.Printf("Cancelling creation of FaaS resource (%s)...\n", functionName)
 	}
 
-	input := CreateFaaSResourceInput{
+	input := types.CreateFaaSResourceInput{
 		FunctionName: functionName,
 		Runtime:      &runtimeSelection,
 	}
@@ -118,16 +119,16 @@ func promptInput() (string, error) {
 	return prompt.Run()
 }
 
-func promptLambdaRuntimeSelect() (LambdaRuntime, error) {
+func promptLambdaRuntimeSelect() (types.LambdaRuntime, error) {
 	prompt := promptui.Select{
 		Label:     "Function Runtime: ",
 		Templates: selectTemplate,
-		Items:     runtimeSelection,
+		Items:     types.RuntimeSelectionOptions,
 	}
 
 	index, _, err := prompt.Run()
 
-	return runtimeSelection[index], err
+	return types.RuntimeSelectionOptions[index], err
 }
 
 func promptConfirm(name string) (string, error) {
@@ -141,7 +142,7 @@ func promptConfirm(name string) (string, error) {
 	return prompt.Run()
 }
 
-func ProvisionFaasRepo(input CreateFaaSResourceInput) error {
+func ProvisionFaasRepo(input types.CreateFaaSResourceInput) error {
 	loader := &config.AWSConfigLoader{}
 	cfg, err := loader.LoadAWSConfig(profile)
 
@@ -152,7 +153,7 @@ func ProvisionFaasRepo(input CreateFaaSResourceInput) error {
 	client := lambda.NewFromConfig(cfg)
 	creds, _ := cfg.Credentials.Retrieve(context.TODO())
 	functionName := fmt.Sprintf("arn:aws:lambda:%s:%s:function:%s", cfg.Region, creds.AccountID, CREATE_LAMBDA_REPOSITORY)
-	data, _ := json.Marshal(&Payload{
+	data, _ := json.Marshal(&types.Payload{
 		TemplateRepo:          input.Runtime.TemplateRepo,
 		TemplateOwner:         TEMPLATE_REPO_OWNER,
 		Owner:                 TEMPLATE_REPO_OWNER,
@@ -181,7 +182,7 @@ func ProvisionFaasRepo(input CreateFaaSResourceInput) error {
 // Creates the Lambda Function, this function can take some time due to having
 // to wait for the AWS Policies and Role to take effect so that the lambda
 // may assume the role.
-func CreateFaasResource(input CreateFaaSResourceInput) error {
+func CreateFaasResource(input types.CreateFaaSResourceInput) error {
 	loader := &config.AWSConfigLoader{}
 	cfg, err := loader.LoadAWSConfig(profile)
 
@@ -191,7 +192,7 @@ func CreateFaasResource(input CreateFaaSResourceInput) error {
 	client := lambda.NewFromConfig(cfg)
 
 	var defaultTimeout int32 = 30
-	var functionCode = types.FunctionCode{
+	var functionCode = lambdaTypes.FunctionCode{
 		S3Bucket: &S3_BUCKET_NAME,
 		S3Key:    &input.Runtime.Example,
 	}
@@ -227,7 +228,7 @@ func ValidateFunctionName(input string) error {
 	return nil
 }
 
-func CreateLambdaRole(input *CreateFaaSResourceInput) (string, string, error) {
+func CreateLambdaRole(input *types.CreateFaaSResourceInput) (string, string, error) {
 	loader := config.AWSConfigLoader{}
 	cfg, err := loader.LoadAWSConfig(profile)
 	if err != nil {
@@ -257,12 +258,12 @@ func CreateLambdaRole(input *CreateFaaSResourceInput) (string, string, error) {
 	return *roleOutput.Role.Arn, *roleOutput.Role.RoleName, nil
 }
 
-func TryMakeFaaSResource(client *lambda.Client, functionCode types.FunctionCode, defaultTimeout int32, roleArn string, input *CreateFaaSResourceInput) (bool, error) {
+func TryMakeFaaSResource(client *lambda.Client, functionCode lambdaTypes.FunctionCode, defaultTimeout int32, roleArn string, input *types.CreateFaaSResourceInput) (bool, error) {
 	_, err := client.CreateFunction(context.TODO(), &lambda.CreateFunctionInput{
 		Code:          &functionCode,
 		FunctionName:  &input.FunctionName,
 		Role:          &roleArn,
-		Architectures: []types.Architecture{types.ArchitectureArm64},
+		Architectures: []lambdaTypes.Architecture{lambdaTypes.ArchitectureArm64},
 		// Description: ""
 		Runtime: input.Runtime.AWSRuntime,
 		Timeout: &defaultTimeout,
@@ -270,7 +271,7 @@ func TryMakeFaaSResource(client *lambda.Client, functionCode types.FunctionCode,
 	})
 
 	if err != nil {
-		var conflict *types.InvalidParameterValueException
+		var conflict *lambdaTypes.InvalidParameterValueException
 		if errors.As(err, &conflict) {
 			return false, err
 		}

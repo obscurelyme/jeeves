@@ -5,13 +5,14 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"regexp"
 	"strings"
 
 	lambdaTypes "github.com/aws/aws-sdk-go-v2/service/lambda/types"
 	jeevesEnv "github.com/obscurelyme/jeeves/env"
 	"github.com/obscurelyme/jeeves/templates"
+	"github.com/obscurelyme/jeeves/templates/scripts/python"
 	"github.com/obscurelyme/jeeves/utils"
+	pythonUtils "github.com/obscurelyme/jeeves/utils/python"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -40,14 +41,35 @@ func init() {
 }
 
 func startFaasCmdHandler(cmd *cobra.Command, args []string) error {
-	err := initializeDockerFiles()
+	faasConfig, err := ReadLambdaConfig()
 	if err != nil {
 		return err
 	}
 
+	faasRuntime := faasConfig.GetString("function.runtime")
+	faasHandler := faasConfig.GetString("function.handler")
+
 	isLoggedIn, _ := CheckAWSLogin()
 	if !isLoggedIn {
 		return errors.New("you need to login into AWS first, please run \"jeeves login\" then retry")
+	}
+
+	err = initializeDockerFiles(faasRuntime, faasHandler)
+	if err != nil {
+		return err
+	}
+
+	if strings.Contains(faasRuntime, "python") {
+		// Ensure we have an active venv
+		if !pythonUtils.VirtualEnvActive() {
+			return errors.New("no python venv is active")
+		}
+		// NOTE: write the bootstrap file
+		script := python.New(ConfigPath, lambdaTypes.Runtime(faasRuntime))
+		err = script.WriteFile()
+		if err != nil {
+			return err
+		}
 	}
 
 	err = initializeEnvFile()
@@ -83,19 +105,21 @@ func initializeEnvFile() error {
 	return envFile.WriteConfig()
 }
 
-func initializeDockerFiles() error {
+func initializeDockerFiles(faasRuntime string, faasHandler string) error {
 	isConfigured := checkFaasDockerConfig()
 
 	if !isConfigured {
-		err := writeDockerfile()
+		err := writeDockerfile(faasRuntime, faasHandler)
 		if err != nil {
 			return err
 		}
 
-		err = writeComposeFile()
+		err = writeComposeFile(faasRuntime)
 		if err != nil {
 			return err
 		}
+	} else {
+		fmt.Println("Dockerfile and docker-compose.yaml already written to, will not overwrite")
 	}
 
 	return nil
@@ -126,67 +150,26 @@ func checkFaasDockerConfig() bool {
 	return false
 }
 
-func writeDockerfile() error {
-	faasConfig, err := ReadLambdaConfig()
+func writeDockerfile(faasRuntime string, faasHandler string) error {
+	var dockerFile templates.DockerFileWriter
+
+	dockerFile, err := templates.NewDockerFile(&templates.NewDockerFileInput{
+		Runtime:  faasRuntime,
+		Handler:  faasHandler,
+		FilePath: ConfigPath,
+	})
+
 	if err != nil {
 		return err
 	}
 
-	faasRuntime := faasConfig.GetString("function.runtime")
-	faasHandler := faasConfig.GetString("function.handler")
-
-	dockerImage, err := getDockerImage(lambdaTypes.Runtime(faasRuntime))
-	if err != nil {
-		return err
-	}
-	dockerImageTag, err := getDockerImageTag(lambdaTypes.Runtime(faasRuntime))
-	if err != nil {
-		return err
-	}
-	dockerFile, err := templates.GetDockerfile(lambdaTypes.Runtime(faasRuntime), dockerImage, dockerImageTag, faasHandler)
-	if err != nil {
-		return err
-	}
-
-	dockerFilePath := fmt.Sprintf("%s/Dockerfile", ConfigPath)
-	return os.WriteFile(dockerFilePath, []byte(dockerFile), 0644)
+	return dockerFile.WriteFile()
 }
 
-func writeComposeFile() error {
+func writeComposeFile(faasRuntime string) error {
+	// TODO: need to work with the runtime param to determine what kind of compose file the user gets
 	composeFilePath := fmt.Sprintf("%s/docker-compose.yaml", ConfigPath)
 	return os.WriteFile(composeFilePath, []byte(COMPOSE_TEMPLATE), 0644)
-}
-
-func getDockerImageTag(runtime lambdaTypes.Runtime) (string, error) {
-	const latestTag string = "latest"
-
-	if strings.Contains(string(runtime), "nodejs") {
-		regx := regexp.MustCompile("[0-9]+")
-		tag := regx.FindString(string(runtime))
-		return tag, nil
-	} else if strings.Contains(string(runtime), "python") {
-		return strings.Split(string(runtime), "python")[1], nil
-	} else if strings.Contains(string(runtime), "provided.al2") {
-		return latestTag, nil
-	} else if strings.Contains(string(runtime), "java") {
-		return strings.Split(string(runtime), "java")[1], nil
-	}
-
-	return "", errors.New("no docker image supports given runtime")
-}
-
-func getDockerImage(runtime lambdaTypes.Runtime) (string, error) {
-	if strings.Contains(string(runtime), "nodejs") {
-		return string(DockerImageNodeJS), nil
-	} else if strings.Contains(string(runtime), "python") {
-		return string(DockerImagePython), nil
-	} else if strings.Contains(string(runtime), "provided.al2") {
-		return string(DockerImageGo), nil
-	} else if strings.Contains(string(runtime), "java") {
-		return string(DockerImageJava), nil
-	}
-
-	return "", errors.New("no docker image tag supports given runtime")
 }
 
 func ReadLambdaConfig() (*viper.Viper, error) {

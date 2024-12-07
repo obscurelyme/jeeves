@@ -2,7 +2,10 @@ FROM %s:%s
 
 RUN pip3 install debugpy
 
-COPY app ${LAMBDA_TASK_ROOT}/app
+# Copy the dependencies from the active venv
+COPY %s ${LAMBDA_TASK_ROOT}
+# Copy source code
+COPY src/* ${LAMBDA_TASK_ROOT}
 
 # Override the bootstrap script to allow for debugging
 COPY bootstrap.sh /var/runtime/bootstrap

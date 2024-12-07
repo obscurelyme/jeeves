@@ -11,6 +11,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/iam"
 	"github.com/aws/aws-sdk-go-v2/service/lambda"
 	"github.com/obscurelyme/jeeves/config"
+	"github.com/obscurelyme/jeeves/types"
 	"github.com/spf13/cobra"
 )
 
@@ -67,7 +68,7 @@ func deleteFassCmdHandler(cmd *cobra.Command, args []string) error {
 func DeleteFaaSRepo(cfg aws.Config, name string) error {
 	lambdaClient := lambda.NewFromConfig(cfg)
 	functionName := "delete-lambda-repository"
-	payload, err := json.Marshal(&DeleteRepositoryPayload{
+	payload, err := json.Marshal(&types.DeleteRepositoryPayload{
 		RepositoryOwner: "obscurelyme",
 		RepositoryName:  fmt.Sprintf("%s.lambda", name),
 	})
