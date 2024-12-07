@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	lambdaTypes "github.com/aws/aws-sdk-go-v2/service/lambda/types"
+	pythonUtils "github.com/obscurelyme/jeeves/utils/python"
 	"github.com/spf13/viper"
 )
 
@@ -83,4 +84,49 @@ func NewComposeTemplate(configPath string) *ComposeTemplate {
 	template.Cfg.SetConfigType("yaml")
 
 	return template
+}
+
+type DockerFileWriter interface {
+	WriteFile() error
+}
+
+type DockerFile struct {
+	dockerFile string
+}
+
+func (df *DockerFile) WriteFile() error {
+	return nil
+}
+
+// Creates a new JavaDockerFile writer ready to write a properly formatted Dockerfile for Java lambdas
+func NewJavaDockerFile(runtime lambdaTypes.Runtime) (DockerFileWriter, error) {
+	jdf := new(DockerFile)
+
+	jdf.dockerFile = dockerFileJava
+
+	return jdf, nil
+}
+
+// Creates a new PythonDockerFile writer ready to write a properly formatted Dockerfile for Python lambdas
+func NewPythonDockerFile(runtime lambdaTypes.Runtime) (DockerFileWriter, error) {
+	pdf := new(DockerFile)
+
+	depsPath, err := pythonUtils.PythonDependenciesPath()
+	if err != nil {
+		return nil, err
+	}
+
+	pdf.dockerFile = fmt.Sprintf(dockerFilePython, "image", "tag", depsPath, "handler")
+
+	return pdf, nil
+}
+
+// Creates a new GoDockerFile writer ready to write a properly formatted Dockerfile for Go lambdas
+func NewGoDockerFile(runtime lambdaTypes.Runtime) (DockerFileWriter, error) {
+	return nil, nil
+}
+
+// Creates a new NodeJSDockerFile writer ready to write a properly formatted Dockerfile for NodeJS lambdas
+func NewNodeJSDockerFile(runtime lambdaTypes.Runtime) (DockerFileWriter, error) {
+	return nil, nil
 }

@@ -13,7 +13,6 @@ import (
 	"github.com/obscurelyme/jeeves/templates"
 	"github.com/obscurelyme/jeeves/templates/scripts/python"
 	"github.com/obscurelyme/jeeves/utils"
-	pythonUtils "github.com/obscurelyme/jeeves/utils/python"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -68,11 +67,11 @@ func startFaasCmdHandler(cmd *cobra.Command, args []string) error {
 			return err
 		}
 		// NOTE: check for the venv and log
-		s, err := pythonUtils.PythonDependenciesPath()
-		if err != nil {
-			return err
-		}
-		fmt.Println(s)
+		// s, err := pythonUtils.PythonDependenciesPath()
+		// if err != nil {
+		// 	return err
+		// }
+		// fmt.Println(s)
 	}
 
 	err = initializeEnvFile()
