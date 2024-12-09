@@ -2,12 +2,9 @@ package java
 
 import (
 	_ "embed"
-	"encoding/xml"
 	"fmt"
 	"os"
 	"testing"
-
-	"github.com/obscurelyme/jeeves/utils/java/pom"
 )
 
 //go:embed pom.xml
@@ -25,56 +22,18 @@ func TestJavaPom(t *testing.T) {
 		return
 	}
 
-	t.Run("Writes to a pom file", func(t *testing.T) {
+	t.Run("Adds required plugins to a pom file", func(t *testing.T) {
 		testPom, err := New(tmpDir)
 		if err != nil {
 			t.Errorf("error reading pom.xml: %s", err.Error())
 			return
 		}
 
-		testPom.pom.Plugins = &pom.Plugins{Comment: "added by test", Plugin: []pom.Plugin{{
-			XMLName: xml.Name{
-				Space: "",
-				Local: "plugin",
-			},
-			GroupId:    "org.apache.maven.plugins",
-			ArtifactId: "maven-dependency-plugin",
-			Version:    "3.1.2",
-			Configuration: &pom.Any{
-				XMLName: xml.Name{Space: "", Local: "configuration"},
-				AnyElements: []pom.Any{
-					{
-						XMLName: xml.Name{Space: "", Local: "includeScope"},
-						Value:   "runtime",
-					},
-				},
-			},
-			Executions: &pom.Executions{
-				Execution: []pom.Execution{
-					{
-						XMLName: xml.Name{
-							Space: "",
-							Local: "execution",
-						},
-						Id:    "copy-dependencies-package",
-						Phase: "package",
-						Goals: &pom.Goals{
-							Comment: "copy the dependencies",
-							Goal:    []string{"copy-dependency"},
-						},
-					},
-				},
-			},
-		}}}
+		testPom.AddRequiredPlugins()
+		testPom.WriteFile()
 
-		if testPom.pom.ArtifactId != "my-app" {
-			t.Errorf("Artifact-ID mismatch. Expected: %s, Actual: %s", "my-app", testPom.pom.ArtifactId)
-		}
-
-		err = testPom.WriteFile()
-		if err != nil {
-			t.Errorf("error writing new pom: %s", err.Error())
-			return
+		if testPom.pom.Plugins.Plugin[0].ArtifactId != "maven-dependency-plugin" {
+			t.Errorf("Artifact-ID mismatch. Expected: %s, Actual: %s", "maven-dependency-plugin", testPom.pom.Plugins.Plugin[0].ArtifactId)
 		}
 	})
 }

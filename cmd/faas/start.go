@@ -12,6 +12,7 @@ import (
 	"github.com/obscurelyme/jeeves/templates"
 	"github.com/obscurelyme/jeeves/templates/scripts/python"
 	"github.com/obscurelyme/jeeves/utils"
+	"github.com/obscurelyme/jeeves/utils/java"
 	pythonUtils "github.com/obscurelyme/jeeves/utils/python"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -139,6 +140,8 @@ func checkFaasDockerConfig() bool {
 func writeDockerfile(faasRuntime string, faasHandler string) error {
 	var dockerFile templates.DockerFileWriter
 	var venv *pythonUtils.PythonVirtualEnv = nil
+	var mvnPomDriver *java.MavenPomFileDriver = nil
+	var mvnErr error = nil
 
 	if strings.Contains(faasRuntime, "python") {
 		venv = pythonUtils.NewPythonVirtualEnv()
@@ -155,11 +158,20 @@ func writeDockerfile(faasRuntime string, faasHandler string) error {
 		}
 	}
 
+	if strings.Contains(faasRuntime, "java") {
+		fmt.Println("JAVA DETECTEED")
+		mvnPomDriver, mvnErr = java.New(ConfigPath)
+		if mvnErr != nil {
+			return mvnErr
+		}
+	}
+
 	dockerFile, err := templates.NewDockerFile(&templates.NewDockerFileInput{
-		Runtime:    faasRuntime,
-		Handler:    faasHandler,
-		FilePath:   ConfigPath,
-		VirtualEnv: venv,
+		Runtime:        faasRuntime,
+		Handler:        faasHandler,
+		FilePath:       ConfigPath,
+		VirtualEnv:     venv,
+		MavenPomDriver: mvnPomDriver,
 	})
 
 	if err != nil {

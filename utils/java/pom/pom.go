@@ -6,6 +6,7 @@ import (
 
 // Official Pom Schema https://maven.apache.org/xsd/maven-4.0.0.xsd
 type Project struct {
+	Attrs                  []xml.Attr              `xml:",any,attr"`
 	XMLName                xml.Name                `xml:"project"`
 	ModelVersion           string                  `xml:"modelVersion,omitempty"`
 	Parent                 *Parent                 `xml:"parent,omitempty"`
@@ -33,10 +34,13 @@ type Project struct {
 	Dependencies           *Dependencies           `xml:"dependencies,omitempty"`
 	Repositories           *Repositories           `xml:"repositories,omitempty"`
 	PluginRepositories     *PluginRepositories     `xml:"pluginRepositories,omitempty"`
-	Build                  Build                   `xml:"build,omitempty"`
-	Reports                *Reports                `xml:"reports,omitempty"`
-	Reporting              *Reporting              `xml:"reporting,omitempty"`
-	Plugins                *Plugins                `xml:"plugins,omitempty"`
+	Build                  *Build                  `xml:"build,omitempty"`
+	// Deprecated: Now ignored by Maven.
+	Reports   *Reports   `xml:"reports,omitempty"`
+	Reporting *Reporting `xml:"reporting,omitempty"`
+	Plugins   *Plugins   `xml:"plugins,omitempty"`
+	// A listing of project-local build profiles which will modify the build process when activated.
+	Profiles *Profiles `xml:"profiles,omitempty"`
 }
 
 type Prerequisites struct {
@@ -114,7 +118,6 @@ type DependencyManagement struct {
 }
 
 type Dependency struct {
-	XMLName    xml.Name    `xml:"dependency"`
 	GroupId    string      `xml:"groupId,omitempty"`
 	ArtifactId string      `xml:"artifactId,omitempty"`
 	Version    string      `xml:"version,omitempty"`
@@ -272,6 +275,8 @@ type Relocation struct {
 }
 
 type Reports struct {
+	Comment string   `xml:",comment"`
+	Report  []string `xml:"report,omitempty"`
 }
 
 type Reporting struct {
@@ -281,13 +286,37 @@ type Reporting struct {
 }
 
 type ReportPlugins struct {
-	Plugins
+	Comment string         `xml:",comment"`
+	Plugins []ReportPlugin `xml:"plugins,omitempty"`
+}
+
+type ReportPlugin struct {
+	Comment    string `xml:",comment"`
+	GroupId    string `xml:"groupId,omitempty"`
+	ArtifactId string `xml:"artifactId,omitempty"`
+	Version    string `xml:"version,omitempty"`
+	// Multiple specifications of a set of reports, each having (possibly) different configuration.
+	// This is the reporting parallel to an <code>execution</code> in the build.
+	ReportSets    *ReportSets `xml:"reportSets,omitempty"`
+	Inherited     string      `xml:"inherited,omitempty"`
+	Configuration *Any        `xml:"configuration,omitempty"`
+}
+
+type ReportSets struct {
+	Comment   string      `xml:",comment"`
+	ReportSet []ReportSet `xml:"reportSet,omitempty"`
+}
+
+type ReportSet struct {
+	Id            string   `xml:"id,omitempty"`
+	Reports       *Reports `xml:"reports,omitempty"`
+	Inherited     string   `xml:"inherited,omitempty"`
+	Configuration *Any     `xml:"configuration,omitempty"`
 }
 
 type PluginManagement struct {
 	Comment string   `xml:",comment"`
-	XMLName xml.Name `xml:"pluginManagement,omitempty"`
-	Plugins []Plugin `xml:"plugins,omitempty"`
+	Plugins *Plugins `xml:"plugins,omitempty"`
 }
 
 type Plugins struct {
@@ -296,15 +325,17 @@ type Plugins struct {
 }
 
 type Plugin struct {
-	XMLName       xml.Name    `xml:"plugin"`
-	Comment       string      `xml:",comment"`
-	GroupId       string      `xml:"groupId,omitempty"`
-	ArtifactId    string      `xml:"artifactId,omitempty"`
-	Version       string      `xml:"version,omitempty"`
-	Executions    *Executions `xml:"executions,omitempty"`
-	Configuration *Any        `xml:"configuration,omitempty"`
-	// Deprecated, and unused by Maven. Use Goals within Execution instead
-	Goals *Goals `xml:"goals,omitempty"`
+	Comment      string        `xml:",comment"`
+	GroupId      string        `xml:"groupId,omitempty"`
+	ArtifactId   string        `xml:"artifactId,omitempty"`
+	Version      string        `xml:"version,omitempty"`
+	Extensions   bool          `xml:"extensions,omitempty"`
+	Executions   *Executions   `xml:"executions,omitempty"`
+	Dependencies *Dependencies `xml:"dependencies,omitempty"`
+	// Deprecated: Not used by Maven. Use Goals within Execution instead
+	Goals         *Goals `xml:"goals,omitempty"`
+	Inherited     string `xml:"inherited,omitempty"`
+	Configuration *Any   `xml:"configuration,omitempty"`
 }
 
 type Executions struct {
@@ -313,10 +344,9 @@ type Executions struct {
 }
 
 type Execution struct {
-	XMLName xml.Name `xml:"execution"`
-	Id      string   `xml:"id,omitempty"`
-	Phase   string   `xml:"phase,omitempty"`
-	Goals   *Goals   `xml:"goals,omitempty"`
+	Id    string `xml:"id,omitempty"`
+	Phase string `xml:"phase,omitempty"`
+	Goals *Goals `xml:"goals,omitempty"`
 }
 
 type Goals struct {
@@ -324,17 +354,125 @@ type Goals struct {
 	Goal    []string `xml:"goal,omitempty"`
 }
 
-type Build struct {
-	XMLName          xml.Name          `xml:"build"`
+type Resources struct {
+	Comment string `xml:",comment"`
+	/*
+		Describe the resource target path. The path is relative to the target/classes directory
+
+		IE: ${project.build.outputDirectory}
+	*/
+	TargetPath string    `xml:"targetPath,omitempty"`
+	Filtering  string    `xml:"filtering,omitempty"`
+	Directory  string    `xml:"directory,omitempty"`
+	Includes   *Includes `xml:"includes,omitempty"`
+	Excludes   *Excludes `xml:"excludes,omitempty"`
+}
+
+type Includes struct {
+	Comment string   `xml:",comment"`
+	Include []string `xml:"include,omitempty"`
+}
+
+type Excludes struct {
+	Comment string   `xml:",comment"`
+	Exclude []string `xml:"exclude,omitempty"`
+}
+
+type Filters struct {
+	Comment string `xml:",comment"`
+}
+
+type BuildBase struct {
 	Comment          string            `xml:",comment"`
+	DefaultGoal      string            `xml:"defaultGoal,omitempty"`
+	Resources        *Resources        `xml:"resources,omitempty"`
+	TestResources    *Resources        `xml:"testResources,omitempty"`
+	Directory        string            `xml:"directory,omitempty"`
 	FinalName        string            `xml:"finalName,omitempty"`
+	Filters          *Filters          `xml:"filters,omitempty"`
 	PluginManagement *PluginManagement `xml:"pluginManagement,omitempty"`
 	Plugins          *Plugins          `xml:"plugins,omitempty"`
 }
 
+type Build struct {
+	Comment               string      `xml:",comment"`
+	SourceDirectory       string      `xml:"sourceDirectory,omitempty"`
+	ScriptSourceDirectory string      `xml:"scriptSourceDirectory,omitempty"`
+	TestSourceDirectory   string      `xml:"testSourceDirectory,omitempty"`
+	OutputDirectory       string      `xml:"outputDirectory,omitempty"`
+	TestOutputDirectory   string      `xml:"testOutputDirectory,omitempty"`
+	Extensions            *Extensions `xml:"extensions,omitempty"`
+	BuildBase
+}
+
+type Extensions struct {
+	Comment   string      `xml:",comment"`
+	Extension []Extension `xml:"extension,omitempty"`
+}
+
+type Extension struct {
+	Comment    string `xml:",comment"`
+	GroupId    string `xml:"groupId,omitempty"`
+	ArtifactId string `xml:"artifactId,omitempty"`
+	Version    string `xml:"version,omitempty"`
+}
+
+type Profiles struct {
+	Comment string    `xml:",comment"`
+	Profile []Profile `xml:"profile,omitempty"`
+}
+
+// Modifications to the build process which is activated based on environmental parameters or command line arguments.
+type Profile struct {
+	Comment                string                  `xml:",comment"`
+	Id                     string                  `xml:"id,omitempty"`
+	Activation             *Activation             `xml:"activation,omitempty"`
+	Build                  *BuildBase              `xml:"build,omitempty"`
+	Modules                *Modules                `xml:"modules,omitempty"`
+	DistributionManagement *DistributionManagement `xml:"distributionManagement,omitempty"`
+	Properties             *Any                    `xml:"properties,omitempty"`
+	Dependencies           *Dependencies           `xml:"dependencies,omitempty"`
+	Repositories           *Repositories           `xml:"repositories,omitempty"`
+	PluginRepositories     *PluginRepositories     `xml:"pluginRepositories,omitempty"`
+	// Deprecated: Not used by Maven
+	Reports   *Reports   `xml:"reports,omitempty"`
+	Reporting *Reporting `xml:"reporting,omitempty"`
+}
+
+type Activation struct {
+	Comment         string              `xml:",comment"`
+	ActiveByDefault bool                `xml:"activeByDefault,omitempty"`
+	JDK             string              `xml:"jdk,omitempty"`
+	OS              *ActivationOS       `xml:"os,omitempty"`
+	Property        *ActivationProperty `xml:"property,omitempty"`
+	File            *ActivationFile     `xml:"file,omitempty"`
+}
+
+type ActivationProperty struct {
+	Comment string `xml:",comment"`
+	Name    string `xml:"name,omitempty"`
+	Value   string `xml:"value,omitempty"`
+}
+
+type ActivationOS struct {
+	Comment string `xml:",comment"`
+	Name    string `xml:"name,omitempty"`
+	Family  string `xml:"family,omitempty"`
+	Arch    string `xml:"arch,omitempty"`
+	Version string `xml:"version,omitempty"`
+}
+
+type ActivationFile struct {
+	Comment string `xml:",comment"`
+	// The name of the file that must be missing to activate the profile.
+	Missing string `xml:"missing,omitempty"`
+	// The name of the file that must exist to activate the profile.
+	Exists string `xml:"exists,omitempty"`
+}
+
 type Any struct {
 	XMLName     xml.Name
-	Attrs       []xml.Attr `xml:",any,attr"`
+	Attrs       []xml.Attr `xml:"-"`
 	Value       string     `xml:",chardata"`
 	AnyElements []Any      `xml:",any"`
 }

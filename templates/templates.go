@@ -10,6 +10,7 @@ import (
 
 	lambdaTypes "github.com/aws/aws-sdk-go-v2/service/lambda/types"
 	"github.com/obscurelyme/jeeves/types"
+	"github.com/obscurelyme/jeeves/utils/java"
 	pythonUtils "github.com/obscurelyme/jeeves/utils/python"
 	"github.com/spf13/viper"
 )
@@ -110,8 +111,10 @@ type NewDockerFileInput struct {
 	Handler string
 	// Directory location the dockerfile will be written to
 	FilePath string
-	// Virtual Environment, used for Python
+	// Optional: Virtual Environment, used for Python
 	VirtualEnv pythonUtils.PythonVirtualEnvDriver
+	// Optional: Driver to modify the project's Maven POM file, used for Java
+	MavenPomDriver java.MavenPomDriver
 }
 
 func NewDockerFile(input *NewDockerFileInput) (DockerFileWriter, error) {
@@ -132,7 +135,13 @@ func NewDockerFile(input *NewDockerFileInput) (DockerFileWriter, error) {
 func NewJavaDockerFile(input *NewDockerFileInput) (DockerFileWriter, error) {
 	jdf := new(DockerFile)
 
-	// TODO: need to modify the pom.xml file to include maven-copy-dependencies plugin and add it to the compile/package step
+	if !input.MavenPomDriver.HasRequiredPlugins() {
+		input.MavenPomDriver.AddRequiredPlugins()
+	}
+	err := input.MavenPomDriver.WriteFile()
+	if err != nil {
+		return nil, err
+	}
 
 	tag, err := getDockerImageTag(lambdaTypes.Runtime(input.Runtime))
 	if err != nil {
