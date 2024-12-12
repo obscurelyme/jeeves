@@ -32,7 +32,7 @@ func TestJavaPom(t *testing.T) {
 		testPom.AddRequiredPlugins()
 		testPom.WriteFile()
 
-		if testPom.pom.Build.Plugins.Plugin[0].ArtifactId != "maven-dependency-plugin" {
+		if testPom.pom.Build.Plugins.Plugin[2].ArtifactId != "maven-dependency-plugin" {
 			t.Errorf("Artifact-ID mismatch. Expected: %s, Actual: %s", "maven-dependency-plugin", testPom.pom.Build.Plugins.Plugin[0].ArtifactId)
 		}
 	})
