@@ -10,7 +10,7 @@ func init() {
 	rootCmd.AddCommand(versionCmd)
 }
 
-const VERSION = "0.0.12"
+const VERSION = "0.0.13"
 
 var versionCmd = &cobra.Command{
 	Use:   "version",
