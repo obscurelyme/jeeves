@@ -18,8 +18,7 @@ var plugins []pom.Plugin = []pom.Plugin{{
 	Version:    "3.1.2",
 	Configuration: &pom.Any{
 		XMLName: xml.Name{Space: "", Local: "configuration"},
-		Value:   "",
-		AnyElements: []pom.Any{
+		Children: []pom.Any{
 			{
 				XMLName: xml.Name{Space: "", Local: "includeScope"},
 				Value:   "runtime",

@@ -32,8 +32,8 @@ func TestJavaPom(t *testing.T) {
 		testPom.AddRequiredPlugins()
 		testPom.WriteFile()
 
-		if testPom.pom.Plugins.Plugin[0].ArtifactId != "maven-dependency-plugin" {
-			t.Errorf("Artifact-ID mismatch. Expected: %s, Actual: %s", "maven-dependency-plugin", testPom.pom.Plugins.Plugin[0].ArtifactId)
+		if testPom.pom.Build.Plugins.Plugin[0].ArtifactId != "maven-dependency-plugin" {
+			t.Errorf("Artifact-ID mismatch. Expected: %s, Actual: %s", "maven-dependency-plugin", testPom.pom.Build.Plugins.Plugin[0].ArtifactId)
 		}
 	})
 }

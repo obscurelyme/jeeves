@@ -2,6 +2,8 @@ package pom
 
 import (
 	"encoding/xml"
+	"io"
+	"strings"
 )
 
 // Official Pom Schema https://maven.apache.org/xsd/maven-4.0.0.xsd
@@ -38,7 +40,6 @@ type Project struct {
 	// Deprecated: Now ignored by Maven.
 	Reports   *Reports   `xml:"reports,omitempty"`
 	Reporting *Reporting `xml:"reporting,omitempty"`
-	Plugins   *Plugins   `xml:"plugins,omitempty"`
 	// A listing of project-local build profiles which will modify the build process when activated.
 	Profiles *Profiles `xml:"profiles,omitempty"`
 }
@@ -471,8 +472,71 @@ type ActivationFile struct {
 }
 
 type Any struct {
-	XMLName     xml.Name
-	Attrs       []xml.Attr `xml:"-"`
-	Value       string     `xml:",chardata"`
-	AnyElements []Any      `xml:",any"`
+	XMLName  xml.Name
+	Attrs    []xml.Attr `xml:"-"`
+	Value    string     `xml:",innerxml"`
+	Children []Any      `xml:",any"`
+}
+
+func (a *Any) UnmarshalXML(d *xml.Decoder, start xml.StartElement) error {
+	var value string
+	var children []Any
+
+	a.XMLName.Local = start.Name.Local
+	a.XMLName.Space = start.Name.Space
+	a.Attrs = start.Attr
+
+	for {
+		t, err := d.Token()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return err
+		}
+
+		switch el := t.(type) {
+		case xml.StartElement:
+			{
+				var child Any
+				if err := d.DecodeElement(&child, &el); err != nil {
+					return err
+				}
+				children = append(children, child)
+			}
+		case xml.CharData:
+			{
+				value = string(el)
+			}
+		}
+	}
+
+	a.Value = strings.TrimSpace(value)
+	a.Children = children
+
+	return nil
+}
+
+func (a *Any) MarshalXML(e *xml.Encoder, start xml.StartElement) error {
+	start.Name = a.XMLName
+	start.Attr = []xml.Attr{} // NOTE: just omitting the attrs
+
+	// Encode the start of the element
+	if err := e.EncodeToken(start); err != nil {
+		return err
+	}
+
+	for _, child := range a.Children {
+		if err := e.Encode(child); err != nil {
+			return err
+		}
+	}
+
+	if a.Value != "" {
+		if err := e.EncodeToken(xml.CharData([]byte(a.Value))); err != nil {
+			return err
+		}
+	}
+
+	return e.EncodeToken(xml.EndElement{Name: a.XMLName})
 }
