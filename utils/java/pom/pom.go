@@ -8,8 +8,10 @@ import (
 
 // Official Pom Schema https://maven.apache.org/xsd/maven-4.0.0.xsd
 type Project struct {
-	Attrs                  []xml.Attr              `xml:",any,attr"`
 	XMLName                xml.Name                `xml:"project"`
+	Xmlns                  string                  `xml:"xmlns,attr"`
+	SchemaLocation         string                  `xml:"xsi,attr"`
+	Xsi                    string                  `xml:"schemaLocation,attr"`
 	ModelVersion           string                  `xml:"modelVersion,omitempty"`
 	Parent                 *Parent                 `xml:"parent,omitempty"`
 	GroupId                string                  `xml:"groupId,omitempty"`
@@ -483,8 +485,7 @@ func (a *Any) UnmarshalXML(d *xml.Decoder, start xml.StartElement) error {
 	var children []Any
 
 	a.XMLName.Local = start.Name.Local
-	a.XMLName.Space = start.Name.Space
-	a.Attrs = start.Attr
+	// a.XMLName.Space = start.Name.Space
 
 	for {
 		t, err := d.Token()
@@ -519,7 +520,7 @@ func (a *Any) UnmarshalXML(d *xml.Decoder, start xml.StartElement) error {
 
 func (a *Any) MarshalXML(e *xml.Encoder, start xml.StartElement) error {
 	start.Name = a.XMLName
-	start.Attr = []xml.Attr{} // NOTE: just omitting the attrs
+	start.Attr = nil // NOTE: just omitting the attrs
 
 	// Encode the start of the element
 	if err := e.EncodeToken(start); err != nil {
