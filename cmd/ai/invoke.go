@@ -8,59 +8,12 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/bedrockruntime"
 	"github.com/aws/aws-sdk-go-v2/service/bedrockruntime/types"
+	"github.com/obscurelyme/jeeves/cmd/ai/types/titan"
 	"github.com/obscurelyme/jeeves/config"
 	"github.com/obscurelyme/jeeves/prompt"
 	"github.com/obscurelyme/jeeves/utils"
 	"github.com/spf13/cobra"
 )
-
-type TitanTextResult struct {
-	TokenCount       int32  `json:"tokenCount"`
-	OutputText       string `json:"outputText"`
-	CompletionReason string `json:"completionReason"`
-}
-
-type TitanTextResponse struct {
-	InputTextTokenCount int32             `json:"inputTextTokenCount"`
-	Results             []TitanTextResult `json:"results"`
-}
-
-type TitanTextGenerationConfig struct {
-	// Use a lower value to decrease randomness in responses.
-	Temperature float64 `json:"temperature"`
-	// Use a lower value to ignore less probable options and decrease the diversity of responses.
-	TopP float64 `json:"topP"`
-	// Specify the maximum number of tokens to generate in the response. Maximum token limits are strictly enforced.
-	MaxTokenCount int32 `json:"maxTokenCount"`
-	// Specify a character sequence to indicate where the model should stop.
-	StopSequences []string `json:"stopSequences,omitempty"`
-}
-
-type TitanTextRequest struct {
-	// The prompt to provide the model for generating a response.
-	// To generate responses in a conversational style, wrap the prompt by using the following format:
-	//
-	// "inputText": "User: <prompt>\nBot:
-	InputText string `json:"inputText"`
-	// Optional, used to configure inference parameters
-	TextGenerationConfig *TitanTextGenerationConfig `json:"textGenerationConfig"`
-}
-
-type InvocationMetrics struct {
-	InputTokenCount   int `json:"inputTokenCount"`
-	OutputTokenCount  int `json:"outputTokenCount"`
-	InvocationLatency int `json:"invocationLatency"`
-	FirstByteLatency  int `json:"firstByteLatency"`
-}
-
-type TitanTextStreamedResponse struct {
-	OutputText                string            `json:"outputText"`
-	Index                     int               `json:"index"`
-	TotalOutputTextTokenCount int               `json:"totalOutputTextTokenCount"`
-	CompletionReason          string            `json:"completionReason"`
-	InputTextTokenCount       int               `json:"inputTextTokenCount"`
-	InvocationMetrics         InvocationMetrics `json:"amazon-bedrock-invocationMetrics"`
-}
 
 var invokeCmd = &cobra.Command{
 	Use:   "invoke",
@@ -117,9 +70,9 @@ func InvokeTitanText(cfg aws.Config, ctx context.Context, prompt string) (string
 	bedrockClient := bedrockruntime.NewFromConfig(cfg)
 	modelId := utils.Jeeves.ConfigSettings.AI.PreferredModel
 
-	body, err := json.Marshal(TitanTextRequest{
+	body, err := json.Marshal(titan.TextRequest{
 		InputText: prompt,
-		TextGenerationConfig: &TitanTextGenerationConfig{
+		TextGenerationConfig: &titan.TextGenerationConfig{
 			Temperature:   0,
 			TopP:          1,
 			MaxTokenCount: tokenCount(modelId),
@@ -139,7 +92,7 @@ func InvokeTitanText(cfg aws.Config, ctx context.Context, prompt string) (string
 		return "", err
 	}
 
-	resp, err := processStreamOutput(ctx, streamOutput, func(ctx context.Context, part TitanTextStreamedResponse) error {
+	resp, err := processStreamOutput(ctx, streamOutput, func(ctx context.Context, part titan.TextStreamedResponse) error {
 		fmt.Print(part.OutputText)
 		return nil
 	})
@@ -150,15 +103,15 @@ func InvokeTitanText(cfg aws.Config, ctx context.Context, prompt string) (string
 	return resp.OutputText, nil
 }
 
-type StreamingOutputHandler func(ctx context.Context, part TitanTextStreamedResponse) error
+type StreamingOutputHandler func(ctx context.Context, part titan.TextStreamedResponse) error
 
-func processStreamOutput(ctx context.Context, output *bedrockruntime.InvokeModelWithResponseStreamOutput, handler StreamingOutputHandler) (TitanTextStreamedResponse, error) {
-	resp := TitanTextStreamedResponse{}
+func processStreamOutput(ctx context.Context, output *bedrockruntime.InvokeModelWithResponseStreamOutput, handler StreamingOutputHandler) (titan.TextStreamedResponse, error) {
+	resp := titan.TextStreamedResponse{}
 
 	for event := range output.GetStream().Events() {
 		switch v := event.(type) {
 		case *types.ResponseStreamMemberChunk:
-			var presp *TitanTextStreamedResponse
+			var presp *titan.TextStreamedResponse
 			err := json.Unmarshal(v.Value.Bytes, &presp)
 			if err != nil {
 				return *presp, err
