@@ -4,7 +4,7 @@ import (
 	"context"
 )
 
-type StreamingOutputHandler func(ctx context.Context, part interface{}) error
+type StreamingOutputHandler func(ctx context.Context, part string) error
 
 type InvokeDriver interface {
 	Invoke(prompt string) (string, error)

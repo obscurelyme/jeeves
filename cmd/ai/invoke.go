@@ -7,7 +7,6 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/bedrockruntime"
 	"github.com/obscurelyme/jeeves/ai"
-	titanTypes "github.com/obscurelyme/jeeves/ai/titan/types"
 	"github.com/obscurelyme/jeeves/config"
 	"github.com/obscurelyme/jeeves/prompt"
 	"github.com/obscurelyme/jeeves/utils"
@@ -19,15 +18,6 @@ var invokeCmd = &cobra.Command{
 	Short: "Invoke the AWS Bedrock for a single use prompt.",
 	Long:  "Invoke the AWS Bedrock for a single use prompt.",
 	RunE:  invokeCmdHandler,
-}
-
-func tokenCount(modelId string) int32 {
-	switch modelId {
-	case "amazon.titan-text-premier-v1:0":
-		return 521
-	default:
-		return 4096
-	}
 }
 
 func invoke(cfg aws.Config, ctx context.Context) error {
@@ -50,8 +40,8 @@ func invoke(cfg aws.Config, ctx context.Context) error {
 		TokenCount: 1024,
 	})
 
-	err = titanAi.InvokeStream(input, func(ctx context.Context, part interface{}) error {
-		fmt.Print(part.(*titanTypes.TextStreamedResponse).OutputText)
+	err = titanAi.InvokeStream(input, func(ctx context.Context, part string) error {
+		fmt.Print(part)
 		return nil
 	})
 	if err != nil {

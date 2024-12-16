@@ -94,7 +94,7 @@ func (ai *TitanAI) processStreamOutput(
 			if err != nil {
 				return err
 			}
-			err = handler(ctx, presp)
+			err = handler(ctx, presp.OutputText)
 			if err != nil {
 				return err
 			}
