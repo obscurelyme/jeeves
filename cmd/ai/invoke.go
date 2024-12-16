@@ -2,13 +2,12 @@ package ai
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/bedrockruntime"
-	"github.com/aws/aws-sdk-go-v2/service/bedrockruntime/types"
-	"github.com/obscurelyme/jeeves/cmd/ai/types/titan"
+	"github.com/obscurelyme/jeeves/ai"
+	titanTypes "github.com/obscurelyme/jeeves/ai/titan/types"
 	"github.com/obscurelyme/jeeves/config"
 	"github.com/obscurelyme/jeeves/prompt"
 	"github.com/obscurelyme/jeeves/utils"
@@ -45,7 +44,16 @@ func invoke(cfg aws.Config, ctx context.Context) error {
 	}
 
 	fmt.Print("thinking...\n\n")
-	_, err = InvokeTitanText(cfg, ctx, input)
+	titanAi, _ := ai.New(&ai.NewInvokeDriverInput{
+		Client:     bedrockruntime.NewFromConfig(cfg),
+		ModelId:    utils.Jeeves.ConfigSettings.AI.PreferredModel,
+		TokenCount: 1024,
+	})
+
+	err = titanAi.InvokeStream(input, func(ctx context.Context, part interface{}) error {
+		fmt.Print(part.(*titanTypes.TextStreamedResponse).OutputText)
+		return nil
+	})
 	if err != nil {
 		return err
 	}
@@ -56,6 +64,11 @@ func invoke(cfg aws.Config, ctx context.Context) error {
 }
 
 func invokeCmdHandler(cmd *cobra.Command, args []string) error {
+	isLoggedIn, _ := utils.CheckAWSLogin()
+	if !isLoggedIn {
+		return utils.ErrNotLoggedIn
+	}
+
 	ctx := context.Background()
 	loader := config.AWSConfigLoader{}
 	cfg, err := loader.LoadAWSConfig("default")
@@ -64,68 +77,4 @@ func invokeCmdHandler(cmd *cobra.Command, args []string) error {
 	}
 
 	return invoke(cfg, ctx)
-}
-
-func InvokeTitanText(cfg aws.Config, ctx context.Context, prompt string) (string, error) {
-	bedrockClient := bedrockruntime.NewFromConfig(cfg)
-	modelId := utils.Jeeves.ConfigSettings.AI.PreferredModel
-
-	body, err := json.Marshal(titan.TextRequest{
-		InputText: prompt,
-		TextGenerationConfig: &titan.TextGenerationConfig{
-			Temperature:   0,
-			TopP:          1,
-			MaxTokenCount: tokenCount(modelId),
-		},
-	})
-	if err != nil {
-		return "", err
-	}
-
-	streamOutput, err := bedrockClient.InvokeModelWithResponseStream(ctx, &bedrockruntime.InvokeModelWithResponseStreamInput{
-		ModelId:     aws.String(modelId),
-		ContentType: aws.String("application/json"),
-		Body:        body,
-	})
-
-	if err != nil {
-		return "", err
-	}
-
-	resp, err := processStreamOutput(ctx, streamOutput, func(ctx context.Context, part titan.TextStreamedResponse) error {
-		fmt.Print(part.OutputText)
-		return nil
-	})
-
-	if err != nil {
-		return "", err
-	}
-	return resp.OutputText, nil
-}
-
-type StreamingOutputHandler func(ctx context.Context, part titan.TextStreamedResponse) error
-
-func processStreamOutput(ctx context.Context, output *bedrockruntime.InvokeModelWithResponseStreamOutput, handler StreamingOutputHandler) (titan.TextStreamedResponse, error) {
-	resp := titan.TextStreamedResponse{}
-
-	for event := range output.GetStream().Events() {
-		switch v := event.(type) {
-		case *types.ResponseStreamMemberChunk:
-			var presp *titan.TextStreamedResponse
-			err := json.Unmarshal(v.Value.Bytes, &presp)
-			if err != nil {
-				return *presp, err
-			}
-			err = handler(ctx, *presp)
-			if err != nil {
-				return *presp, err
-			}
-		case *types.UnknownUnionMember:
-			fmt.Printf("unknown tag: %s", v.Tag)
-		default:
-			fmt.Print("union is nil or unknown type")
-		}
-	}
-
-	return resp, nil
 }

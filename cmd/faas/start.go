@@ -51,7 +51,7 @@ func startFaasCmdHandler(cmd *cobra.Command, args []string) error {
 	faasHandler := faasConfig.GetString("function.handler")
 	isLoggedIn, _ := CheckAWSLogin()
 	if !isLoggedIn {
-		return errors.New("you need to login into AWS first, please run \"jeeves login\" then retry")
+		return utils.ErrNotLoggedIn
 	}
 
 	err = initializeDockerFiles(faasRuntime, faasHandler)

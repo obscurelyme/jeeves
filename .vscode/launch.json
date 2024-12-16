@@ -13,8 +13,8 @@
       "showLog": true,
       "console": "integratedTerminal",
       "args": [
-        "faas",
-        "start"
+        "ai",
+        "invoke"
       ]
     }
   ]

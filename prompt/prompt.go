@@ -26,10 +26,11 @@ func QuickPrompt(label string) (string, error) {
 }
 
 // Executes a basic select prompt for quick end-user input
-func SelectPrompt(label string, options []interface{}) (interface{}, error) {
+func SelectPrompt[T interface{}](label string, options []T, template *promptui.SelectTemplates) (T, error) {
 	selectPrompt := promptui.Select{
-		Label: label,
-		Items: options,
+		Label:     label,
+		Items:     options,
+		Templates: template,
 	}
 
 	index, _, err := selectPrompt.Run()
