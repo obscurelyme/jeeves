@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/aws/aws-sdk-go-v2/service/bedrockruntime"
+	"github.com/obscurelyme/jeeves/ai/nova"
 	"github.com/obscurelyme/jeeves/ai/titan"
 	"github.com/obscurelyme/jeeves/ai/types"
 )
@@ -28,8 +29,12 @@ func New(input *NewInvokeDriverInput) (types.InvokeDriver, error) {
 		})
 		return p, nil
 	} else if strings.Contains(input.ModelId, string(types.Nova)) {
-		// TODO: return new Nova Implementation
-		return nil, errors.New("not implemented")
+		p := nova.New(&nova.NovaAiInput{
+			Client:     input.Client,
+			ModelId:    input.ModelId,
+			TokenCount: input.TokenCount,
+		})
+		return p, nil
 	}
 
 	return nil, errors.New("not implemented")

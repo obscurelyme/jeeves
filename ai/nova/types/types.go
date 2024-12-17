@@ -35,9 +35,21 @@ type Message struct {
 }
 
 type InferenceConfig struct {
-	MaxNewTokens  int      `json:"max_new_tokens,omitempty"`
-	Temperature   float64  `json:"temperature,omitempty"`
-	TopP          float64  `json:"top_p,omitempty"`
+	/*
+		(Optional) The maximum number of tokens to generate before stopping.
+
+		Note that Amazon Nova models might stop generating tokens before reaching the value of max_tokens.
+		The Maximum New Tokens value allowed is 5K.
+	*/
+	MaxNewTokens int `json:"max_new_tokens,omitempty"`
+	/*
+		(Optional) The amount of randomness injected into the response. Valid values are between 0.00001 and 1, inclusive.
+		The default value is 0.7.
+	*/
+	Temperature float64 `json:"temperature,omitempty"`
+	// (Optional) Use nucleus sampling
+	TopP float64 `json:"top_p,omitempty"`
+	// (Optional) Only sample from the top K options for each subsequent token.
 	TopK          int      `json:"top_k,omitempty"`
 	StopSequences []string `json:"stopSequences,omitempty"`
 }

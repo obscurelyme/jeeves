@@ -20,6 +20,10 @@ var invokeCmd = &cobra.Command{
 	RunE:  invokeCmdHandler,
 }
 
+func init() {
+	invokeCmd.PersistentFlags().Bool("stream", false, "Toggles streaming responses")
+}
+
 func invoke(cfg aws.Config, ctx context.Context) error {
 	input, err := prompt.QuickPrompt("Input > ")
 	if input == "exit" || input == "quit" {
