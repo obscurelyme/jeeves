@@ -4,6 +4,22 @@ package nova
 	AWS Nova: https://docs.aws.amazon.com/nova/latest/userguide/what-is-nova.html
 */
 
+type Response struct {
+	Output     *Output `json:"output,omitempty"`
+	StopReason string  `json:"stopReason,omitempty"`
+	Usage      *Usage  `json:"usage,omitempty"`
+}
+
+type Usage struct {
+	InputTokens  int32 `json:"inputTokens,omitempty"`
+	OutputTokens int32 `json:"outputTokens,omitempty"`
+	TotalTokens  int32 `json:"totalTokens,omitempty"`
+}
+
+type Output struct {
+	Message Message
+}
+
 type Body struct {
 	System          []System         `json:"system,omitempty"`
 	Messages        []Message        `json:"messages,omitempty"`

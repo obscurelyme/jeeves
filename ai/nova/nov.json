@@ -1,0 +1,18 @@
+{
+  "output": {
+    "message": {
+      "content": [
+        {
+          "text": "The sum of 2 and 2 is 4.\\n\\nThis is a basic arithmetic operation where you add two numbers together. In this case, you are adding 2 and 2:\\n\\n2 + 2 = 4\\n\\nThis is a fundamental concept in mathematics and is one of the first operations children learn."
+        }
+      ],
+      "role": "assistant"
+    }
+  },
+  "stopReason": "end_turn",
+  "usage": {
+    "inputTokens": 7,
+    "outputTokens": 63,
+    "totalTokens": 70
+  }
+}

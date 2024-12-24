@@ -38,16 +38,19 @@ func invoke(cfg aws.Config, ctx context.Context) error {
 	}
 
 	fmt.Print("thinking...\n\n")
-	titanAi, _ := ai.New(&ai.NewInvokeDriverInput{
+	aiPrompt, _ := ai.New(&ai.NewInvokeDriverInput{
 		Client:     bedrockruntime.NewFromConfig(cfg),
 		ModelId:    utils.Jeeves.ConfigSettings.AI.PreferredModel,
 		TokenCount: 1024,
 	})
 
-	err = titanAi.InvokeStream(input, func(ctx context.Context, part string) error {
-		fmt.Print(part)
-		return nil
-	})
+	output, err := aiPrompt.Invoke(input)
+	fmt.Println(output)
+
+	// err = aiPrompt.InvokeStream(input, func(ctx context.Context, part string) error {
+	// 	fmt.Print(part)
+	// 	return nil
+	// })
 	if err != nil {
 		return err
 	}

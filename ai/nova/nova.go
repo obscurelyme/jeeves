@@ -19,8 +19,15 @@ type NovaAi struct {
 
 func (ai *NovaAi) Invoke(prompt string) (string, error) {
 	body, err := json.Marshal(nova.Body{
-		System:   []nova.System{},
-		Messages: []nova.Message{},
+		System: []nova.System{},
+		Messages: []nova.Message{
+			{
+				Role: "user",
+				Content: []nova.Content{{
+					Text: prompt,
+				}},
+			},
+		},
 		InferenceConfig: &nova.InferenceConfig{
 			MaxNewTokens: int(ai.tokenCount),
 			Temperature:  0.7,
@@ -46,7 +53,7 @@ func (ai *NovaAi) Invoke(prompt string) (string, error) {
 		return "", err
 	}
 
-	return res.Messages[len(res.Messages)-1].Content[len(res.Messages[len(res.Messages)-1].Content)-1].Text, nil
+	return res.Output.Message.Content[len(res.Output.Message.Content)-1].Text, nil
 }
 
 func (ai *NovaAi) InvokeStream(prompt string, handler types.StreamingOutputHandler) error {
@@ -59,8 +66,8 @@ func (ai *NovaAi) processStreamOutput(ctx context.Context,
 	return nil
 }
 
-func (ai *NovaAi) unmarshal(output *bedrockruntime.InvokeModelOutput) (*nova.Body, error) {
-	var response nova.Body
+func (ai *NovaAi) unmarshal(output *bedrockruntime.InvokeModelOutput) (*nova.Response, error) {
+	var response nova.Response
 	err := json.Unmarshal(output.Body, &response)
 	if err != nil {
 		return nil, err
