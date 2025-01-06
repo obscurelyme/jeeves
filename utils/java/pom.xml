@@ -50,6 +50,7 @@
               <goal>test-compile</goal>
             </goals>
 						<configuration>
+							<key>value</key>
 							<sourceDirs>
 								<sourceDir>${project.basedir}/src/test/java</sourceDir>
 							</sourceDirs>
